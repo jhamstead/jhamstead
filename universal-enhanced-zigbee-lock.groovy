@@ -392,15 +392,14 @@ private Map parseResponseMessage(String description) {
                 type += " by user ${user}"
                 resultMap.name = "lock"
                 resultMap.value = user
-                resultMap.data = [ code: decrypt(state("code${user}")) ]
+                resultMap.data = [ usedCode: user ]
             }
         } else if (value == 1){
             type = "remotely"
             if (user && user != 255) {
                 type += " by user ${user}"
                 resultMap.name = "lock"
-                resultMap.value = user
-                resultMap.data = [ code: decrypt(state("code${user}")) ]
+                resultMap.data = [ usedCode: user ]
             }
         } else if (value == 2){
             type = "manually"
@@ -411,9 +410,11 @@ private Map parseResponseMessage(String description) {
         switch (Integer.parseInt(descMap.data[1], 16)) {
             case 1:
                 resultMap.descriptionText = "${linkText} locked ${type}"
+                resultMap.value = "locked"
 				break
             case 2:
                 resultMap.descriptionText = "${linkText} unlocked ${type}"
+                resultMap.value = "unlocked"
 				break
             case 3: //Lock Failure Invalid Pin
             case 4: //Lock Failure Invalid Schedule
@@ -425,21 +426,27 @@ private Map parseResponseMessage(String description) {
 				break
             case 7:
                 resultMap.descriptionText = "${linkText} locked ${type} from keypad"
+                resultMap.value = "locked"
 				break
             case 8:
                 resultMap.descriptionText = "${linkText} locked ${type} with key"
+                resultMap.value = "locked"
 				break
             case 9:
                 resultMap.descriptionText = "${linkText} unlocked ${type} with key"
+                resultMap.value = "unlocked"
 				break
             case 10:
                 resultMap.descriptionText = "${linkText} locked automatically"
+                resultMap.value = "locked"
 				break
             case 13:
                 resultMap.descriptionText = "${linkText} locked ${type}"
+                resultMap.value = "locked"
 				break
             case 14:
                 resultMap.descriptionText = "${linkText} unlocked ${type}"
+                resultMap.value = "unlocked"
 				break
         }
         resultMap.displayed = true
