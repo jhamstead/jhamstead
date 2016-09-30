@@ -1,7 +1,8 @@
-/**
+/*
  *  Universal Enhanced ZigBee Lock
  *
- *	2016-09-28 : Enhanced Capabilities Created - version Alpha 0.1
+ *	2016-10-01 : Bug Fixes - Version Alpha 0.1a
+ *	2016-09-28 : Enhanced Capabilities Created - Version Alpha 0.1
  *
  *	This is a modification of work originally copyrighted by "SmartThings."	 All modifications to their work
  *	is released under the following terms:
@@ -43,7 +44,7 @@
         capability "Battery"
         capability "Lock Codes"
         capability "Configuration"
-        capability "polling"
+        capability "Polling"
         
         //attribute "codeEntered", "string"
         //attribute "armMode", "number"
