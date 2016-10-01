@@ -1,7 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
- *	2016-10-01 : Bug Fixes - Version Alpha 0.1a
+ *	2016-10-01 : Bug Fixes - Version Alpha 0.1b
  *	2016-09-28 : Enhanced Capabilities Created - Version Alpha 0.1
  *
  *	This is a modification of work originally copyrighted by "SmartThings."	 All modifications to their work
@@ -45,11 +45,6 @@
         capability "Lock Codes"
         capability "Configuration"
         capability "Polling"
-        
-        //attribute "codeEntered", "string"
-        //attribute "armMode", "number"
-        
-        //command "acknowledgeArmRequest"
 
         fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_DEADBOLT_5", deviceJoinName: "Kwikset 5-Button Deadbolt"
         fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_LEVER_5", deviceJoinName: "Kwikset 5-Button Lever"
@@ -66,7 +61,7 @@
 			tileAttribute ("device.lock", key:"PRIMARY_CONTROL") {
 				attributeState "locked", label:'locked', action:"lock.unlock", icon:"st.locks.lock.locked", backgroundColor:"#79b821", nextState:"unlocking"
 				attributeState "unlocked", label:'unlocked', action:"lock.lock", icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff", nextState:"locking"
-				attributeState "unknown", label:"unknown", action:"lock.lock", icon:"st.locks.lock.unknown", backgroundColor:"#ffffff", nextState:"locking"
+                attributeState "unknown", label:"unknown", action:"lock.lock", icon:"st.locks.lock.unknown", backgroundColor:"#ffffff", nextState:"locking"
 				attributeState "locking", label:'locking', icon:"st.locks.lock.locked", backgroundColor:"#79b821"
 				attributeState "unlocking", label:'unlocking', icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff"
 			}
@@ -90,7 +85,7 @@
     
 	preferences {
         section ("Enhanced Lock Attributes"){
-           // input "enablePINs", "bool", title: "Enable PIN Capabilities", description: true, defaultValue: true, required: false
+            //input "unlockTimeout", "number", title: "Default Unlock With Timeout (seconds)", description: true, defaultValue: 30, required: false, range: "0..180"
         }
 	}
 }
@@ -151,7 +146,7 @@ def refresh() {
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_MIN_PIN_LENGTH) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_NUM_PIN_USERS)
     state.queueRunning = false
-    state.queue = null
+    state.queue = []
     log.info "refresh() --- cmds: $cmds"
     return cmds
 }
@@ -262,8 +257,6 @@ def reloadAllCodes() {
 
 def updateCodes(codeSettings) {
 	if(codeSettings instanceof String) codeSettings = util.parseJson(codeSettings)
-	def set_cmds = []
-	def get_cmds = []
 	codeSettings.each { name, updated ->
 		def current = decrypt(state[name])
 		if (name.startsWith("code")) {
@@ -281,16 +274,6 @@ def updateCodes(codeSettings) {
 	}
 }
 
-/*def acknowledgeArmRequest(Integer armMode) { //enable code later
-    Map resultMap = [:]
-    resultMap.name = "armMode"
-    resultMap.value = armMode
-    resultMap.displayed = false
-    resultMap.isStateChange = true
-    log.debug "acknowledgeAreRequest(${armMode})"
-    return resultMap
-}*/
-
 // Required to create a queue system to confirm remote code is set (need to wait for response)
 def executeQueue() {
     def cmds
@@ -304,7 +287,7 @@ def executeQueue() {
         cmds = zigbee.command(cmd[0], cmd[1], cmd[2])
         fireCommand(cmds)
         log.info "executeQueue() -- ${cmds}"
-        runIn(30, executeQueue, [overwrite: false])
+        runIn(20, executeQueue, [overwrite: false])
     } else {
         state.queueRunning = false
         reportAllCodes()
