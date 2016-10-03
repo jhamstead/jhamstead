@@ -1,7 +1,8 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
- *	2016-10-01 : Bug Fixes - Version Alpha 0.1b
+ *	2016-10-03 : Bug Fixes - Version Alpha 0.1b
+ *	2016-10-01 : Bug Fixes - Version Alpha 0.1a
  *	2016-09-28 : Enhanced Capabilities Created - Version Alpha 0.1
  *
  *	This is a modification of work originally copyrighted by "SmartThings."	 All modifications to their work
@@ -137,7 +138,7 @@ def configure() {
     return cmds + refresh() // send refresh cmds as part of config     
 }
 
-def refresh() {
+def refresh() { //refresh will override the queue and empty it - in case queue is hung
     def cmds =
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE) +
         zigbee.readAttribute(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING) +
@@ -165,20 +166,6 @@ def parse(String description) {
     log.debug "parse() --- returned: $result"
     
     return result
-}
-
-// provides compatibility with Erik Thayer's "Lock Code Manager"
-def reportAllCodes() { //from garyd9's lock DTH
-    def map = [ name: "reportAllCodes", data: [:], displayed: false, isStateChange: false, type: "physical" ]
-    state.each { entry ->
-        //iterate through all the state entries and add them to the event data to be handled by application event handlers
-        if ( entry.key ==~ /^code\d{1,}/ && entry.value.startsWith("~") ) {
-		    map.data.put(entry.key, decrypt(entry.value))
-        } else {
-    	    map.data.put(entry.key, entry.value)
-        }
-    }
-    sendEvent(map)
 }
 
 // Polling capability commands
@@ -248,7 +235,7 @@ def deleteCode(codeNumber) {
 def reloadAllCodes() {
     state.each { entry ->
         def codeNumber = entry.key.find(/\d+/)
-        if ( entry.key ==~ /^code(\d+)$/ && entry.value) {
+        if ( entry.key ==~ /^code(\d+)$/ && entry.value ) {
             log.debug "Reloading Code for User ${codeNumber}"
             setCode(codeNumber, decrypt(entry.value))
         }
@@ -258,23 +245,24 @@ def reloadAllCodes() {
 def updateCodes(codeSettings) {
 	if(codeSettings instanceof String) codeSettings = util.parseJson(codeSettings)
 	codeSettings.each { name, updated ->
-		def current = decrypt(state[name])
-		if (name.startsWith("code")) {
-			def n = name[4..-1].toInteger()
-			log.debug "$name was $current, set to $updated"
-			if (updated?.size() >= state.MIN_PIN_LENGTH && updated?.size() <= state.MAX_PIN_LENGTH && updated != current) {
+		if (name ==~ /^code\d+$/) {
+            def current = decrypt(state[name])
+			def n = (name =~ /^code(\d+)$/)[0][1].toInteger()
+            log.debug "updateCodes() - $name was $current, setting to $updated"
+			if (updated.size() >= state.MIN_PIN_LENGTH && updated.size() <= state.MAX_PIN_LENGTH && updated != current) {
 				setCode(n, updated)
-			} else if ((current && updated == "") || updated == "0") {
+			} else if ( (!updated || updated == "0") && current ) {
 				deleteCode(n)
-			}/* else if (updated && ( updated.size() < state.MIN_PIN_LENGTH || updated.size() > state.MAX_PIN_LENGTH )) {
-				// Entered code was too short or too long
-				codeSettings["code$n"] = current
-			}*/
-		} else log.warn("unexpected entry $name: $updated")
+			} else if ( updated.size() < state.MIN_PIN_LENGTH || updated.size() > state.MAX_PIN_LENGTH) {
+                log.warn("updateCodes() - Invalid PIN length $name: $updated") 
+            } else if ( updated == current ) {
+                log.debug("updateCodes() - PIN unchanged for $name: $updated") 
+            } else log.warn("updateCodes() - unexpected PIN for $name: $updated") 
+		} else log.warn("updateCodes() - unexpected entry code name: $name")
 	}
 }
 
-// Required to create a queue system to confirm remote code is set (need to wait for response)
+// Required to create a queue system to confirm remote code is set (need to wait for response - Issue with Yale Locks)
 def executeQueue() {
     def cmds
     state.queueRunning = true
@@ -287,7 +275,11 @@ def executeQueue() {
         cmds = zigbee.command(cmd[0], cmd[1], cmd[2])
         fireCommand(cmds)
         log.info "executeQueue() -- ${cmds}"
-        runIn(20, executeQueue, [overwrite: false])
+        if ( device.getDataValue("manufacturer") == "Yale" ) { // Need to wait for confirmation with Yale locks
+            runIn(15, executeQueue, [overwrite: false])
+        } else {
+        	runIn(1, executeQueue, [overwrite: false])
+        }
     } else {
         state.queueRunning = false
         reportAllCodes()
@@ -302,6 +294,18 @@ private fireCommand(List commands) { //Function used from SmartThings Lightify D
             sendHubCommand([value].collect {new physicalgraph.device.HubAction(it)})
         }
     }
+}
+
+// provides compatibility with Erik Thayer's "Lock Code Manager"
+private reportAllCodes() { //from garyd9's lock DTH
+    def map = [ name: "reportAllCodes", data: [:], displayed: false, isStateChange: false, type: "physical" ]
+    state.each { entry ->
+        //iterate through all the state entries and add them to the event data to be handled by application event handlers
+        if ( entry.value && entry.key ==~ /^code\d+$/) {
+		    map.data.put(entry.key, decrypt(entry.value))
+        }
+    }
+    sendEvent(map)
 }
 
 private Map parseReportAttributeMessage(String description) {
@@ -449,28 +453,37 @@ private Map parseResponseMessage(String description) {
             log.info "Programming Event -- ignored"
             return
         }
+        def codeNumber = Integer.parseInt(descMap.data[2], 16)
         switch (Integer.parseInt(descMap.data[1], 16)) {
             case 1: 
                 resultMap.descriptionText = "Master code changed ${type}"
                 resultMap.value = 0
 				break
             case 2:
-                resultMap.descriptionText = "User ${Integer.parseInt(descMap.data[2], 16)}'s PIN code added ${type}"
-                resultMap.value = Integer.parseInt(descMap.data[2], 16)
-                resultMap.data = [ code: "" ]
-                state["code${Integer.parseInt(descMap.data[2], 16)}"] = ""  // This only reports when done from keypad (cannot get code so setting to empty string)
+                resultMap.descriptionText = "User ${codeNumber}'s PIN code added ${type}"
+                resultMap.value = codeNumber
+                if ( type == "locally" ) { // Reports when done from keypad (cannot get code so setting to empty string)
+                    resultMap.data = [ code: "" ]
+                    state["code${codeNumber}"] = ""
+                } else {
+                    resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
+                }
 				break
             case 3:
-                resultMap.descriptionText = "User ${Integer.parseInt(descMap.data[2], 16)}'s PIN code deleted ${type}"
-                resultMap.value = Integer.parseInt(descMap.data[2], 16)
-                resultMap.data = [ code: null ]
-                state["code${Integer.parseInt(descMap.data[2], 16)}"] = ""
+                resultMap.descriptionText = "User ${codeNumber}'s PIN code deleted ${type}"
+                resultMap.value = codeNumber
+                resultMap.data = [ code: "" ]
+                state["code${codeNumber}"] = ""
 				break
             case 4:
-                resultMap.descriptionText = "User ${Integer.parseInt(descMap.data[2], 16)}'s PIN code changed ${type}"
-                resultMap.value = Integer.parseInt(descMap.data[2], 16)
-                resultMap.data = [ code: "" ]
-                state["code${Integer.parseInt(descMap.data[2], 16)}"] = ""  // This only reports when done from keypad (cannot get code so setting to empty string)
+                resultMap.descriptionText = "User ${codeNumber}'s PIN code changed ${type}"
+                resultMap.value = codeNumber
+                if ( type == "locally" ) { // Reports when done from keypad (cannot get code so setting to empty string)
+                    resultMap.data = [ code: "" ]
+                    state["code${codeNumber}"] = ""
+                } else {
+                    resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
+                }
 				break
             default:
                 return
@@ -479,37 +492,38 @@ private Map parseResponseMessage(String description) {
         resultMap.name="codeReport"
         resultMap.displayed = true
         resultMap.isStateChange = true
-    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_CMD_USER_CODE_SET) { //Needed because tested Yale lock does not send Programming Event
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_CMD_USER_CODE_SET && device.getDataValue("manufacturer") == "Yale") { //Needed because tested Yale lock does not send Programming Event
         def value = Integer.parseInt(descMap.data[0], 16)
         resultMap.name="codeReport"
+        resultMap.isStateChange = true
+        resultMap.value = state.currentUser
+        resultMap.displayed = true
         if (value == 0 && state.currentState != "${state.currentUser}0"){ //currentState needed due to receiving multiple responses when executing command
             state.currentState = "${state.currentUser}0"
             resultMap.descriptionText = "User ${state.currentUser}'s PIN code added remotely"
-            resultMap.isStateChange = true
-            resultMap.value = state.currentUser
             resultMap.data = [ code: decrypt(state["code${state.currentUser}"]) ]
         } else if (value == 1 && state.currentState != "${state.currentUser}1") {
             state.currentState = "${state.currentUser}1"
             resultMap.descriptionText = "User ${state.currentUser}'s PIN code addition failed"
-            resultMap.isStateChange = true
-            resultMap.value = state.currentUser
-            resultMap.data = [ code: null ]
+            resultMap.data = [ code: "" ]
+            state["code${state.currentUser}"] = ""
+            deleteCode(state.currentUser)  // Not sure why the addition failed ensure code is not set
         } else if (value == 2 && state.currentState != "${state.currentUser}2") {
             state.currentState = "${state.currentUser}2"
             resultMap.descriptionText = "User ${state.currentUser}'s PIN code addition failed: Memory Full"
-            resultMap.isStateChange = true
-            resultMap.value = state.currentUser
-            resultMap.data = [ code: null ]
+            resultMap.data = [ code: "" ]
+            state["code${state.currentUser}"] = ""
+            deleteCode(state.currentUser)  // Ensure code is not set
         } else if (value == 3 && state.currentState != "${state.currentUser}3") {
             state.currentState = "${state.currentUser}3"
             resultMap.descriptionText = "User ${state.currentUser}'s PIN code addition failed: Duplicate Code Error"
-            resultMap.isStateChange = true
-            resultMap.value = state.currentUser
-            resultMap.data = [ code: null ]
+            resultMap.data = [ code: "" ]
+            state["code${state.currentUser}"] = ""
+            deleteCode(state.currentUser)  // Ensure code is not set
         } else {
             resultMap.isStateChange = false
+            resultMap.displayed = false
         }
-        resultMap.displayed = true
     } else {
     
        log.debug "parseResponseMessage() --- ignoring response - ${description}"
