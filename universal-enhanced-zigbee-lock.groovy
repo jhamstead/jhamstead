@@ -1,7 +1,8 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
- *	2016-10-03 : Bug Fixes - Version Alpha 0.1b
+ *	2016-10-03 : Bug Fixes - Version Alpha 0.1c - Initial Release
+ *	2016-10-03 : Add Yale special Verification - Version Alpha 0.1b
  *	2016-10-01 : Bug Fixes - Version Alpha 0.1a
  *	2016-09-28 : Enhanced Capabilities Created - Version Alpha 0.1
  *
@@ -46,6 +47,8 @@
         capability "Lock Codes"
         capability "Configuration"
         capability "Polling"
+        
+        command "deleteAllCodes"
 
         fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_DEADBOLT_5", deviceJoinName: "Kwikset 5-Button Deadbolt"
         fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_LEVER_5", deviceJoinName: "Kwikset 5-Button Lever"
@@ -99,6 +102,7 @@ private getDOORLOCK_CMD_UNLOCK_DOOR() { 0x01 }
 private getDOORLOCK_CMD_USER_CODE_SET() { 0x05 }
 private getDOORLOCK_CMD_USER_CODE_GET() { 0x06 }
 private getDOORLOCK_CMD_CLEAR_USER_CODE() { 0x07 }
+private getDOORLOCK_CMD_CLEAR_ALL_USER_CODE() { 0x08 }
 private getDOORLOCK_RESPONSE_OPERATION_EVENT() { 0x20 }
 private getDOORLOCK_RESPONSE_PROGRAMMING_EVENT() { 0x21 }
 private getPOWER_ATTR_BATTERY_PERCENTAGE_REMAINING() { 0x0021 }
@@ -242,6 +246,11 @@ def reloadAllCodes() {
     }
 }
 
+def deleteAllCodes() {
+        state.queue.push("${CLUSTER_DOORLOCK}:${DOORLOCK_CMD_CLEAR_ALL_USER_CODE}:")
+        if ( ! state.queueRunning ) executeQueue()
+}
+
 def updateCodes(codeSettings) {
 	if(codeSettings instanceof String) codeSettings = util.parseJson(codeSettings)
 	codeSettings.each { name, updated ->
@@ -276,7 +285,7 @@ def executeQueue() {
         fireCommand(cmds)
         log.info "executeQueue() -- ${cmds}"
         if ( device.getDataValue("manufacturer") == "Yale" ) { // Need to wait for confirmation with Yale locks
-            runIn(15, executeQueue, [overwrite: false])
+            runIn(20, executeQueue, [overwrite: false])
         } else {
         	runIn(1, executeQueue, [overwrite: false])
         }
@@ -303,6 +312,8 @@ private reportAllCodes() { //from garyd9's lock DTH
         //iterate through all the state entries and add them to the event data to be handled by application event handlers
         if ( entry.value && entry.key ==~ /^code\d+$/) {
 		    map.data.put(entry.key, decrypt(entry.value))
+        } else if ( entry.key ==~ /^code\d+$/ ) {
+            map.data.put(entry.key, entry.value)
         }
     }
     sendEvent(map)
