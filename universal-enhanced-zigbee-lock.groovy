@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-10-16 : Faster Responses by Removing Queue by Querying Lock Log (fix for Yale locks) - Version Alpha 0.2
  *	2016-10-03 : Bug Fixes - Version Alpha 0.1c - Initial Release
  *	2016-10-03 : Add Yale special Verification - Version Alpha 0.1b
  *	2016-10-01 : Bug Fixes - Version Alpha 0.1a
@@ -47,6 +48,482 @@
         capability "Lock Codes"
         capability "Configuration"
         capability "Polling"
+        
+        command "deleteAllCodes"
+
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_DEADBOLT_5", deviceJoinName: "Kwikset 5-Button Deadbolt"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_LEVER_5", deviceJoinName: "Kwikset 5-Button Lever"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_DEADBOLT_10", deviceJoinName: "Kwikset 10-Button Deadbolt"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0004,0005,0009,0020,0101,0402,0B05,FDBD", outClusters: "000A,0019", manufacturer: "Kwikset", model: "SMARTCODE_DEADBOLT_10T", deviceJoinName: "Kwikset 10-Button Touch Deadbolt"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRL220 TS LL", deviceJoinName: "Yale Touch Screen Lever Lock"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRD210 PB DB", deviceJoinName: "Yale Push Button Deadbolt Lock"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRD220/240 TSDB", deviceJoinName: "Yale Touch Screen Deadbolt Lock"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRL210 PB LL", deviceJoinName: "Yale Push Button Lever Lock"
+    }
+
+    tiles(scale: 2) {
+		multiAttributeTile(name:"toggle", type:"generic", width:6, height:4){
+			tileAttribute ("device.lock", key:"PRIMARY_CONTROL") {
+				attributeState "locked", label:'locked', action:"lock.unlock", icon:"st.locks.lock.locked", backgroundColor:"#79b821", nextState:"unlocking"
+				attributeState "unlocked", label:'unlocked', action:"lock.lock", icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff", nextState:"locking"
+                attributeState "unknown", label:"unknown", action:"lock.lock", icon:"st.locks.lock.unknown", backgroundColor:"#ffffff", nextState:"locking"
+				attributeState "locking", label:'locking', icon:"st.locks.lock.locked", backgroundColor:"#79b821"
+				attributeState "unlocking", label:'unlocking', icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff"
+			}
+		}
+		standardTile("lock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "default", label:'lock', action:"lock.lock", icon:"st.locks.lock.locked", nextState:"locking"
+		}
+		standardTile("unlock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "default", label:'unlock', action:"lock.unlock", icon:"st.locks.lock.unlocked", nextState:"unlocking"
+		}
+		valueTile("battery", "device.battery", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "battery", label:'${currentValue}% battery', unit:""
+		}
+		standardTile("refresh", "device.refresh", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
+		}
+
+		main "toggle"
+		details(["toggle", "lock", "unlock", "battery", "refresh"])
+	}
+    
+	preferences {
+        section ("Enhanced Lock Attributes"){
+            //input "unlockTimeout", "number", title: "Default Unlock With Timeout (seconds)", description: true, defaultValue: 30, required: false, range: "0..180"
+        }
+	}
+}
+// Globals
+private getCLUSTER_POWER() { 0x0001 }
+private getCLUSTER_DOORLOCK() { 0x0101 }
+
+private getDOORLOCK_CMD_LOCK_DOOR() { 0x00 }
+private getDOORLOCK_CMD_UNLOCK_DOOR() { 0x01 }
+private getDOORLOCK_CMD_GET_LOG_RECORD() { 0x04 }
+private getDOORLOCK_CMD_USER_CODE_SET() { 0x05 }
+private getDOORLOCK_CMD_USER_CODE_GET() { 0x06 }
+private getDOORLOCK_CMD_CLEAR_USER_CODE() { 0x07 }
+private getDOORLOCK_CMD_CLEAR_ALL_USER_CODE() { 0x08 }
+private getDOORLOCK_RESPONSE_OPERATION_EVENT() { 0x20 }
+private getDOORLOCK_RESPONSE_PROGRAMMING_EVENT() { 0x21 }
+private getPOWER_ATTR_BATTERY_PERCENTAGE_REMAINING() { 0x0021 }
+private getDOORLOCK_ATTR_LOCKSTATE() { 0x0000 }
+private getDOORLOCK_ATTR_NUM_PIN_USERS() { 0x0012 }
+private getDOORLOCK_ATTR_MAX_PIN_LENGTH() { 0x0017 }
+private getDOORLOCK_ATTR_MIN_PIN_LENGTH() { 0x0018 }
+private getDOORLOCK_ATTR_SEND_PIN_OTA() { 0x0032 }
+
+//private getTYPE_BOOL() { 0x10 }
+private getTYPE_U8() { 0x20 }
+private getTYPE_ENUM8() { 0x30 }
+
+// Public methods
+def installed() {
+    log.trace "installed()"
+}
+
+def uninstalled() {
+    log.trace "uninstalled()"
+}
+
+def configure() {
+    state.disableLocalPINStore = 0
+    state.duplicateCode = false
+    state.MAX_PIN_LENGTH = 4
+    state.MIN_PIN_LENGTH = 8
+    state.NUM_PIN_USERS = 30
+    
+    def cmds =
+        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE,
+                                  TYPE_ENUM8, 0, 3600, null) +
+        zigbee.configureReporting(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING,
+                                  TYPE_U8, 600, 21600, 0x01)
+        
+    log.info "configure() --- cmds: $cmds"
+    return cmds + refresh() // send refresh cmds as part of config     
+}
+
+def refresh() { //refresh will override the queue and empty it - in case queue is hung
+    def cmds =
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE) +
+        zigbee.readAttribute(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING) +
+        //zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SEND_PIN_OTA) +
+        //zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_MAX_PIN_LENGTH) + 
+        //zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_MIN_PIN_LENGTH) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_NUM_PIN_USERS)
+    log.info "refresh() --- cmds: $cmds"
+    return cmds
+}
+
+def parse(String description) {
+
+    log.trace "parse() --- description: $description"
+    Map map = [:]
+    if (description?.startsWith('read attr -')) {
+        map = parseReportAttributeMessage(description)
+    }else {
+        map = parseResponseMessage(description)
+    }
+    def result = map ? createEvent(map) : null
+    
+    log.debug "parse() --- returned: $result"
+    
+    return result
+}
+
+// Polling capability commands
+def poll(){
+    reportAllCodes()
+}
+
+// Lock capability commands
+def lock() {
+    def cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_LOCK_DOOR)
+    log.info "lock() -- cmds: $cmds"
+    return cmds
+}
+
+def unlock() {
+    def cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_UNLOCK_DOOR)
+    log.info "unlock() -- cmds: $cmds"
+    return cmds
+}
+
+// Lock Code capability commands
+def setCode(codeNumber, code) {
+    def octetCode = ""
+    def cmds = ""
+    if (code.toString().size() <= state.MAX_PIN_LENGTH && code.toString().size() >= state.MIN_PIN_LENGTH && code.isNumber() && codeNumber.toInteger() >= 1 && codeNumber.toInteger() <= state.NUM_PIN_USERS){
+         log.debug "Setting code $codeNumber to $code"
+         code.toString().split('').each {
+            if(it.trim()) octetCode += " 3${it}"
+         }
+        if ( device.getDataValue("manufacturer") == "Yale" ) {
+           cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_USER_CODE_SET, "${zigbee.convertToHexString(codeNumber.toInteger(),2)}00 01 00 0${code.toString().size()}${octetCode}") +
+                  zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_GET_LOG_RECORD, "0000") // Need to request response from Yale if code set as a programming event is not sent
+        } else {
+           cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_USER_CODE_SET, "${zigbee.convertToHexString(codeNumber.toInteger(),2)}00 01 00 0${code.toString().size()}${octetCode}")
+        }
+        state["code${codeNumber}"] = encrypt(code)
+    }else{
+        log.debug "Invalid Input: Unable to set code $codeNumber to $code"
+    }
+    log.info "setCode() - ${cmds}"
+    fireCommand(cmds) // not sure why return is failing
+    return cmds
+}
+
+def requestCode(codeNumber) {
+    def cmds = ""
+    if (state.disableLocalPINStore){
+        if (codeNumber.toInteger() >= 0 && codeNumber.toInteger() <= state.NUM_PIN_USERS){
+	        log.debug "Getting code $codeNumber"
+            cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_CLEAR_CODE_GET, "${zigbee.convertToHexString(codeNumber.toInteger(),2)}00}")
+        }else{
+            log.debug "Invalid Input: Unable to get code for $codeNumber"
+        }
+    }else{
+       if (state["code${codeNumber}"]) {
+           log.debug "requestCode: Code recovered for user $codeNumber: ${decrypt(state["code${codeNumber}"])}"
+       } else {
+           log.debug "requestCode: Code not available user $codeNumber"
+       }
+    }
+    log.info "requestCode() - ${cmds}"
+    fireCommand(cmds) // not sure why return is failing
+    return cmds
+}
+
+def deleteCode(codeNumber) {
+    def cmds = ""
+    //state.queue as ArrayList
+    if (codeNumber.toInteger() >= 0 && codeNumber.toInteger() <= state.NUM_PIN_USERS){
+	    log.debug "Deleting code $codeNumber"
+        cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_CLEAR_USER_CODE, "${zigbee.convertToHexString(codeNumber.toInteger(),2)}00")
+    }else{
+        log.debug "Invalid Input: Unable to delete code for $codeNumber"
+    }
+    log.info "deleteCode() - ${cmds}"
+    fireCommand(cmds) // not sure why return is failing
+    return cmds
+}
+
+def reloadAllCodes() {
+    def cmds = ""
+    state.each { entry ->
+        def codeNumber = entry.key.find(/\d+/)
+        if ( entry.key ==~ /^code(\d+)$/ && entry.value ) {
+            log.debug "Reloading Code for User ${codeNumber}"
+            cmds += setCode(codeNumber, decrypt(entry.value))
+        }
+    }
+    log.info "reloadAllCodes() - ${cmds}"
+    fireCommand(cmds) // not sure why return is failing
+    return cmds
+}
+
+def deleteAllCodes() {
+    def cmds = ""
+    cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_CLEAR_ALL_USER_CODE)
+    log.info "deleteAllCodes() - ${cmds}"
+    fireCommand(cmds) // not sure why return is failing
+    return cmds
+}
+
+def updateCodes(codeSettings) {
+    def cmds = ""
+	if(codeSettings instanceof String) codeSettings = util.parseJson(codeSettings)
+	codeSettings.each { name, updated ->
+		if (name ==~ /^code\d+$/) {
+            def current = decrypt(state[name])
+			def n = (name =~ /^code(\d+)$/)[0][1].toInteger()
+            log.debug "updateCodes() - $name was $current, setting to $updated"
+			if (updated.size() >= state.MIN_PIN_LENGTH && updated.size() <= state.MAX_PIN_LENGTH && updated != current) {
+                cmds += setCode(n, updated)
+			} else if ( (!updated || updated == "0") && current ) {
+				cmds += deleteCode(n)
+			} else if ( updated.size() < state.MIN_PIN_LENGTH || updated.size() > state.MAX_PIN_LENGTH) {
+                log.warn("updateCodes() - Invalid PIN length $name: $updated") 
+            } else if ( updated == current ) {
+                log.debug("updateCodes() - PIN unchanged for $name: $updated") 
+            } else log.warn("updateCodes() - unexpected PIN for $name: $updated") 
+		} else log.warn("updateCodes() - unexpected entry code name: $name")
+	}
+    log.info "updateCodes() - ${cmds}"
+    return cmds
+}
+
+// Private methods
+private fireCommand(List commands) { //Function used from SmartThings Lightify Dimmer Switch support by Adam Outler
+    if (commands != null && commands.size() > 0) {
+        log.trace("Executing commands:" + commands)
+        for (String value : commands){
+            sendHubCommand([value].collect {new physicalgraph.device.HubAction(it)})
+        }
+    }
+}
+
+// provides compatibility with Erik Thayer's "Lock Code Manager"
+private reportAllCodes() { //from garyd9's lock DTH
+    def map = [ name: "reportAllCodes", data: [:], displayed: false, isStateChange: false, type: "physical" ]
+    state.each { entry ->
+        //iterate through all the state entries and add them to the event data to be handled by application event handlers
+        if ( entry.value && entry.key ==~ /^code\d+$/) {
+		    map.data.put(entry.key, decrypt(entry.value))
+        } else if ( entry.key ==~ /^code\d+$/ ) {
+            map.data.put(entry.key, entry.value)
+        }
+    }
+    sendEvent(map)
+}
+
+private Map parseReportAttributeMessage(String description) {
+    Map descMap = zigbee.parseDescriptionAsMap(description)
+    Map resultMap = [:]
+    if (descMap.clusterInt == CLUSTER_POWER && descMap.attrInt == POWER_ATTR_BATTERY_PERCENTAGE_REMAINING) {
+        resultMap.name = "battery"
+        resultMap.value = Math.round(Integer.parseInt(descMap.value, 16) / 2)
+        if (device.getDataValue("manufacturer") == "Yale") {            //Handling issue with Yale locks incorrect battery reporting
+            resultMap.value = Integer.parseInt(descMap.value, 16)
+        }
+    }
+    else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_LOCKSTATE) {
+        def value = Integer.parseInt(descMap.value, 16)
+        def linkText = getLinkText(device)
+        resultMap.name = "lock"
+        if (value == 0) {
+            resultMap.value = "unknown"
+            resultMap.descriptionText = "${linkText} is not fully locked"
+            resultMap.displayed = true
+        } else if (value == 1) {
+            resultMap.value = "locked"
+            resultMap.descriptionText = "${linkText} is locked"
+            resultMap.displayed = false
+        } else if (value == 2) {
+            resultMap.value = "unlocked"
+            resultMap.descriptionText = "${linkText} is unlocked"
+            resultMap.displayed = false
+        } else {
+            resultMap.value = "unknown"
+            resultMap.descriptionText = "${linkText} is in unknown lock state"
+            resultMap.displayed = true
+        }
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_MIN_PIN_LENGTH && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        resultMap.name = "MIN_PIN_LENGTH"
+        resultMap.descriptionText = "Minimum PIN length: ${value}"
+		state.MIN_PIN_LENGTH = value
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_MAX_PIN_LENGTH && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        resultMap.name = "MAX_PIN_LENGTH"
+        resultMap.descriptionText = "Maximum PIN length: ${value}"
+		state.MAX_PIN_LENGTH = value
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_NUM_PIN_USERS && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        resultMap.name = "NUM_PIN_USERS"
+        resultMap.descriptionText = "Maximum Number of PIN Users: ${value}"
+		state.NUM_PIN_USERS = value
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_SEND_PIN_OTA && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        if (value == 0) {
+            def cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SEND_PIN_OTA, TYPE_BOOL, 1)
+            log.debug "state.enablePINs cmds - ${cmds}"
+        }
+		state.disableLocalPINStore = value
+    } else {
+        log.debug "parseReportAttributeMessage() --- ignoring attribute - ${description}"
+    }
+    return resultMap
+}
+
+private Map parseResponseMessage(String description) {
+    Map descMap = zigbee.parseDescriptionAsMap(description)
+    Map resultMap = [:]
+    def linkText = getLinkText(device)
+    def cmd = Integer.parseInt(descMap.command,16)
+    if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_RESPONSE_OPERATION_EVENT) {
+        def value = Integer.parseInt(descMap.data[0], 16)
+        def user = Integer.parseInt(descMap.data[2], 16)
+        def type = ""
+        resultMap.name = "operationEvent"
+        if (value == 0){
+            type = "locally"
+            if (user && user != 255) {
+                type += " by user ${user}"
+                resultMap.name = "lock"
+                resultMap.value = user
+                resultMap.data = [ usedCode: user ]
+            }
+        } else if (value == 1){
+            type = "remotely"
+            if (user && user != 255) {
+                type += " by user ${user}"
+                resultMap.name = "lock"
+                resultMap.data = [ usedCode: user ]
+            }
+        } else if (value == 2){
+            type = "manually"
+        } else {
+            log.info "Operation Event -- ignored"
+            return
+        }
+        switch (Integer.parseInt(descMap.data[1], 16)) {
+            case 1:
+                resultMap.descriptionText = "${linkText} locked ${type}"
+                resultMap.value = "locked"
+				break
+            case 2:
+                resultMap.descriptionText = "${linkText} unlocked ${type}"
+                resultMap.value = "unlocked"
+				break
+            case 3: //Lock Failure Invalid Pin
+            case 4: //Lock Failure Invalid Schedule
+                resultMap.descriptionText = "Invalid PIN entered ${type}"
+                break
+            case 5: //Unlock Invalid PIN
+            case 6: //Unlock Invalid Schedule
+                resultMap.descriptionText = "Invalid PIN entered ${type}"
+				break
+            case 7:
+                resultMap.descriptionText = "${linkText} locked ${type} from keypad"
+                resultMap.value = "locked"
+				break
+            case 8:
+                resultMap.descriptionText = "${linkText} locked ${type} with key"
+                resultMap.value = "locked"
+				break
+            case 9:
+                resultMap.descriptionText = "${linkText} unlocked ${type} with key"
+                resultMap.value = "unlocked"
+				break
+            case 10:
+                resultMap.descriptionText = "${linkText} locked automatically"
+                resultMap.value = "locked"
+				break
+            case 13:
+                resultMap.descriptionText = "${linkText} locked ${type}"
+                resultMap.value = "locked"
+				break
+            case 14:
+                resultMap.descriptionText = "${linkText} unlocked ${type}"
+                resultMap.value = "unlocked"
+				break
+        }
+        resultMap.displayed = true
+        resultMap.isStateChange = true
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_RESPONSE_PROGRAMMING_EVENT) {
+        def value = Integer.parseInt(descMap.data[0], 16)
+        def type = ""
+        if (value == 0){
+            type = "locally"
+        } else if (value == 1){
+            type = "remotely"
+        } else {
+            log.info "Programming Event -- ignored"
+            return
+        }
+        def codeNumber = Integer.parseInt(descMap.data[2], 16)
+        resultMap.isStateChange = true
+        switch (Integer.parseInt(descMap.data[1], 16)) {
+            case 1: 
+                resultMap.descriptionText = "Master code changed ${type}"
+                resultMap.value = 0
+				break
+            case 2:
+                resultMap.descriptionText = "User ${codeNumber}'s PIN code added ${type}"
+                resultMap.value = codeNumber
+                if ( type == "locally" ) { // Reports when done from keypad (cannot get code so setting to empty string)
+                    resultMap.data = [ code: "" ]
+                    state["code${codeNumber}"] = ""
+                } else {
+                    resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
+                }
+				break
+            case 3:
+                resultMap.descriptionText = "User ${codeNumber}'s PIN code deleted ${type}"
+                if ( resultMap.value == codeNumber && resultMap.data["code"] == "" ){
+                    resultMap.isStateChange = false
+                }
+                resultMap.value = codeNumber
+                resultMap.data = [ code: "" ]
+                state["code${codeNumber}"] = ""
+				break
+            case 4:
+                resultMap.descriptionText = "User ${codeNumber}'s PIN code changed ${type}"
+                resultMap.value = codeNumber
+                if ( type == "locally" ) { // Reports when done from keypad (cannot get code so setting to empty string)
+                    resultMap.data = [ code: "" ]
+                    state["code${codeNumber}"] = ""
+                } else {
+                    resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
+                }
+				break
+            default:
+                return
+				break
+        }
+        resultMap.name="codeReport"
+        resultMap.displayed = true
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_CMD_GET_LOG_RECORD && Integer.parseInt(descMap.data[6], 16) == 1 && device.getDataValue("manufacturer") == "Yale") { //Needed because tested Yale lock does not send Programming Event
+        def codeNumber = Integer.parseInt(descMap.data[9], 16)
+        resultMap.name="codeReport"
+        resultMap.descriptionText = "User ${codeNumber}'s PIN code added remotely"
+        if ( resultMap.value == codeNumber && resultMap.data["code"] == decrypt(state["code${codeNumber}"]) ){
+            resultMap.isStateChange = false
+        } else {
+            resultMap.isStateChange = true
+        }
+        resultMap.displayed = true
+        resultMap.value = codeNumber
+        resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
+    } else {
+    
+       log.debug "parseResponseMessage() --- ignoring response - ${description}"
+       
+    }
+    return resultMap
+}
         
         command "deleteAllCodes"
 
