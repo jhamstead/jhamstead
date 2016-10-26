@@ -1,7 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
- *  2016-10-26 : Major Design Changes: Optimization, Tamper Alarm, Additional Attributes - Version 0.3
+ *  2016-10-26 : Major Design Changes: Optimization, Tamper Alarm, Additional Attributes - Version Alpha 0.3
  *  2016-10-17 : Add Auto Lock Time and One Touch Lock Capability - Version Alpha 0.2a
  *  2016-10-16 : Faster Responses by Removing Queue by Querying Lock Log (fix for Yale locks) - Version Alpha 0.2
  *	2016-10-03 : Bug Fixes - Version Alpha 0.1c - Initial Release
