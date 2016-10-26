@@ -84,7 +84,7 @@
 			}
             tileAttribute ("device.tamper", key:"SECONDARY_CONTROL") {
                 attributeState "clear", label:""
-                attributeState "detected", label:"Alert!", action:"resetTamperAlert", icon:"st.alarm.alarm.alarm", backgroundColor:"#ff0000"           
+                attributeState "detected", label:"Alert!", action:"resetTamperAlert", icon:"st.alarm.alarm.alarm"         
             }
 		}
 		standardTile("lock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
@@ -112,7 +112,8 @@
             state "oneTouch1Changing", label:'Updating . . .', icon:"st.security.alarm.off"
 		}
 		standardTile("tamper", "device.tamper", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-			state "default", label:'Reset Alert', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm"
+            state "clear", label:'No Alerts', icon:"st.illuminance.illuminance.light"
+			state "detected", label:'Reset Alert', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm"
 		}
 		main "toggle"
 		details(["toggle", "lock", "unlock", "battery", "refresh", "autoLockTile", "oneTouch", "tamper"])
@@ -129,6 +130,7 @@ private getCLUSTER_POWER() { 0x0001 }
 private getCLUSTER_ALARM() { 0x0009 }
 private getCLUSTER_DOORLOCK() { 0x0101 }
 
+private getALARM_CMD_RESET_ALL() { 0x01 }
 private getDOORLOCK_CMD_LOCK_DOOR() { 0x00 }
 private getDOORLOCK_CMD_UNLOCK_DOOR() { 0x01 }
 private getDOORLOCK_CMD_GET_LOG_RECORD() { 0x04 }
@@ -150,7 +152,7 @@ private getDOORLOCK_ATTR_SEND_PIN_OTA() { 0x0032 }
 
 private getTYPE_BOOL() { 0x10 }
 private getTYPE_U8() { 0x20 }
-private getTYPE_U16() { 0x21 }
+//private getTYPE_U16() { 0x21 }
 private getTYPE_U32() { 0x23 }
 private getTYPE_ENUM8() { 0x30 }
 
@@ -171,8 +173,6 @@ def configure() {
                                   TYPE_ENUM8, 0, 3600, null) +
         zigbee.configureReporting(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING,
                                   TYPE_U8, 600, 21600, 0x01) +
-        zigbee.configureReporting(CLUSTER_ALARM, ALARM_COUNT,
-                                  TYPE_U16, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME,
                                   TYPE_U32, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK,
@@ -258,11 +258,14 @@ def unlock() {
 // Additional Command For Tamper Alert
 def resetTamperAlert() {
     def resultMap = [:]
+    def cmds = ""
     if ( device.currentValue("tamper") == "detected" ) {
         resultMap = [ name: "tamper", descriptionText: "Tamper Alert Acknowledged", isStateChange: true, displayed: true, value: "cleared" ]
     }
     log.debug "resetTamperAlert() --- ${resultMap}"
     sendEvent(resultMap)
+    cmds = zigbee.command( CLUSTER_ALARM, ALARM_CMD_RESET_ALL )
+    return cmds
 }
 
 // Lock Code capability commands
@@ -425,23 +428,7 @@ private Map parseReportAttributeMessage(String description) {
         if (device.getDataValue("manufacturer") == "Yale") {            //Handling issue with Yale locks incorrect battery reporting
             resultMap.value = Integer.parseInt(descMap.value, 16)
         }
-    }else if (descMap.clusterInt == CLUSTER_ALARM && descMap.attrInt == ALARM_COUNT) {
-        def value = Integer.parseInt(descMap.value, 16)
-        def linkText = getLinkText(device)
-        log.debug "Alarm Triggered: ${value}"
-        resultMap = [ name: "tamper", displayed: true, value: "detected" ]
-        if (value == 0) {
-            resultMap.descriptionText = "${linkText} deadbolt jammed"
-        } else if (value == 1) {
-            resultMap.descriptionText = "${linkText} reset to factory defaults"
-        } else if (value == 4) {
-            resultMap.descriptionText = "${linkText} wrong entry limit reached"
-        } else if (value == 5) {
-            resultMap.descriptionText = "${linkText} front panel removed"
-        } else if (value == 6) {
-            resultMap.descriptionText = "${linkText} forced open"
-        }
-    }else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_LOCKSTATE) {
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_LOCKSTATE) {
         def value = Integer.parseInt(descMap.value, 16)
         def linkText = getLinkText(device)
         resultMap.name = "lock"
@@ -646,10 +633,23 @@ private Map parseResponseMessage(String description) {
             resultMap.value = codeNumber
             resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
         }
+    } else if (descMap.clusterInt == CLUSTER_ALARM && cmd == ALARM_COUNT) {
+        def value = Integer.parseInt(descMap.data[0], 16)
+        log.debug "Alarm Triggered: ${value}"
+        resultMap = [ name: "tamper", displayed: true, value: "detected" ]
+        if (value == 0) {
+            resultMap.descriptionText = "ALERT: ${linkText} deadbolt jammed"
+        } else if (value == 1) {
+            resultMap.descriptionText = "ALERT: ${linkText} reset to factory defaults"
+        } else if (value == 4) {
+            resultMap.descriptionText = "ALERT: ${linkText} wrong entry limit reached"
+        } else if (value == 5) {
+            resultMap.descriptionText = "ALERT: ${linkText} front panel removed"
+        } else if (value == 6) {
+            resultMap.descriptionText = "ALERT: ${linkText} forced open"
+        }
     } else {
-    
-       log.debug "parseResponseMessage() --- ignoring response - ${description}"
-       
+        log.debug "parseResponseMessage() --- ignoring response - ${description}"
     }
     return resultMap
 }
