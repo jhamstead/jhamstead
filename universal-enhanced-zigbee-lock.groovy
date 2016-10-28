@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-10-27 : Design/Visual Changes: Bug Fixes, Volume Control, Force Reconfigure - Version Alpha 0.4 (Last Planned Alpha Version)
  *  2016-10-26 : Major Design Changes: Optimization, Tamper Alarm, Additional Attributes - Version Alpha 0.3
  *  2016-10-17 : Add Auto Lock Time and One Touch Lock Capability - Version Alpha 0.2a
  *  2016-10-16 : Faster Responses by Removing Queue by Querying Lock Log (fix for Yale locks) - Version Alpha 0.2
@@ -55,10 +56,14 @@
         command "deleteAllCodes"
         command "autoLockToggle"
         command "oneTouchToggle"
+        command "volumeToggle"
         command "resetTamperAlert"
         
+        attribute "wrongCodeEntryLimit", "number"
+        attribute "userCodeDisableTime", "number"
         attribute "autoLockTime", "number"
         attribute "oneTouch", "number"
+        attribute "volume", "string"
         attribute "numPINUsers", "number"
         //attribute "maxPINLength", "number"
         //attribute "minPINLength", "number"
@@ -84,7 +89,7 @@
 			}
             tileAttribute ("device.tamper", key:"SECONDARY_CONTROL") {
                 attributeState "clear", label:""
-                attributeState "detected", label:"Alert!", action:"resetTamperAlert", icon:"st.alarm.alarm.alarm"         
+                attributeState "detected", label:"Alert!", icon:"st.alarm.alarm.alarm"         
             }
 		}
 		standardTile("lock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
@@ -111,17 +116,30 @@
             state "oneTouch0Changing", label:'Updating . . .', icon:"st.security.alarm.on"
             state "oneTouch1Changing", label:'Updating . . .', icon:"st.security.alarm.off"
 		}
-		standardTile("tamper", "device.tamper", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "clear", label:'No Alerts', icon:"st.illuminance.illuminance.light"
-			state "detected", label:'Reset Alert', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm"
+        standardTile("volume", "device.volume", inactiveLabel:false, width:2, height:2) {
+            state "Silent", label:"Silent", action:"volumeToggle", icon:"st.custom.sonos.muted", nextState:"volumeSilentChanging", backgroundColor:"#ffffff"
+            state "Low", label:"Low", action:"volumeToggle", icon:"st.custom.sonos.unmuted", nextState:"volumeLowChanging", backgroundColor:"#7070ee"
+            state "High", label:"High", action:"volumeToggle", icon:"st.custom.sonos.unmuted", nextState:"volumeHighChanging", backgroundColor:"#ee7070"
+            state "volumeSilentChanging", label:'. . .', action:"refresh", icon:"st.custom.sonos.muted", backgroundColor:"#a0a0ff"
+            state "volumeLowChanging", label:'. . .', action:"refresh", icon:"st.custom.sonos.unmuted", backgroundColor:"#a070a0"
+            state "volumeHighChanging", label:'. . .', action:"refresh", icon:"st.custom.sonos.unmuted", backgroundColor:"#ffa0a0"
+		}
+		standardTile("tamper", "device.tamper", inactiveLabel:false, width:2, height:2) {
+            state "clear", label:'No Alerts', icon:"st.nest.nest-leaf", backgroundColor:"#00dd00"
+			state "detected", label:'Reset', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm", backgroundColor:"#ff0000"
+		}
+		standardTile("reconfigure", "device.reconfigure", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+            state "reconfigure", label:'Force Reconfigure', action:"configure", icon:"st.Office.office11"
 		}
 		main "toggle"
-		details(["toggle", "lock", "unlock", "battery", "refresh", "autoLockTile", "oneTouch", "tamper"])
+		details(["toggle", "lock", "unlock", "battery", "tamper", "autoLockTile", "oneTouch", "volume", "refresh", "reconfigure"])
 	}
     
 	preferences {
         section ("Lock Properties"){
-            input "autoLock", "number", title: "Auto Lock Timeout (5-180 Seconds)", description: true, defaultValue: 30, required: true, range: "5..180"
+            input "autoLock", "number", title: "Auto Lock Timeout (5-180 Seconds)", description: true, defaultValue: 30, required: false, range: "5..180"
+            input "wrongLimit", "number", title: "Wrong Code Entry Limit (1-10 Invalid Entries)", description: true, defaultValue: 5, required: false, range: "1..10"
+            input "lockoutTime", "number", title: "Wrong Code Entry Lockout (5-180 Seconds)", description: true, defaultValue: 60, required: false, range: "5..180"
         }
 	}
 }
@@ -147,7 +165,10 @@ private getDOORLOCK_ATTR_NUM_PIN_USERS() { 0x0012 }
 private getDOORLOCK_ATTR_MAX_PIN_LENGTH() { 0x0017 }
 private getDOORLOCK_ATTR_MIN_PIN_LENGTH() { 0x0018 }
 private getDOORLOCK_ATTR_AUTO_RELOCK_TIME() { 0x0023 }
+private getDOORLOCK_ATTR_SOUND_VOLUME() { 0x0024 }
 private getDOORLOCK_ATTR_ONE_TOUCH_LOCK() { 0x0029 }
+private getDOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT() { 0x0030 }
+private getDOORLOCK_ATTR_USER_CODE_DISABLE_TIME() { 0x0031 }
 private getDOORLOCK_ATTR_SEND_PIN_OTA() { 0x0032 }
 
 private getTYPE_BOOL() { 0x10 }
@@ -167,7 +188,7 @@ def uninstalled() {
 
 def configure() {
     state.disableLocalPINStore = false
-    
+    state.updatedDate = Calendar.getInstance().getTimeInMillis()
     def cmds =
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE,
                                   TYPE_ENUM8, 0, 3600, null) +
@@ -176,13 +197,19 @@ def configure() {
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME,
                                   TYPE_U32, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK,
-                                  TYPE_BOOL, 0, 21600, null)
+                                  TYPE_BOOL, 0, 21600, null) +
+        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME,
+                                  TYPE_U8, 0, 21600, null) +
+        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT,
+                                  TYPE_U8, 0, 21600, null) +
+        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME,
+                                  TYPE_U8, 0, 21600, null)
         
     log.info "configure() --- cmds: $cmds"
     return cmds + refresh() // send refresh cmds as part of config     
 }
 
-def refresh() { //refresh will override the queue and empty it - in case queue is hung
+def refresh() {
     def cmds =
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE) +
         zigbee.readAttribute(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING) +
@@ -191,21 +218,49 @@ def refresh() { //refresh will override the queue and empty it - in case queue i
         //zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_MIN_PIN_LENGTH) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_NUM_PIN_USERS) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) +
-        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK)
-
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME)
+        reportAllCodes()
     log.info "refresh() --- cmds: $cmds"
     return cmds
 }
 
 def updated() {
-
+    def cmds = ""
+    def cmd = ""
+    def wrongEntryLimit = (settings.wrongLimit) ? settings.wrongLimit : 5
+    def disableTime = (settings.lockoutTime) ? settings.lockoutTime : 60
+    def myTime = ( settings.autoLock ) ? settings.autoLock : 30
+    //def myTime =( settings.autoLock && device.getDataValue("manufacturer") == "Yale" ) ? settings.autoLock : 30
+    if ( (Calendar.getInstance().getTimeInMillis() - state.updatedDate) < 10000 ) return // Needed because updated() is being called twice
+    if ( device.currentValue("wrongCodeEntryLimit") != wrongEntryLimit ) {
+        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT, TYPE_U8, zigbee.convertToHexString(wrongEntryLimit,2))/* +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT)*/
+        cmds += cmd
+        fireCommand(cmd)
+    }
+    if ( device.currentValue("userCodeDisableTime") != disableTime ) {
+        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME, TYPE_U8, zigbee.convertToHexString(disableTime,2))/* +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME)*/
+        cmds += cmd
+        fireCommand(cmd)
+    }
+    if ( device.currentValue("autoLockTime") != myTime && device.currentValue("autoLockTime") > 0 ) {
+        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(myTime,8))
+        cmds += cmd
+        fireCommand(cmd)
+    }
+    state.updatedDate = Calendar.getInstance().getTimeInMillis() //Part of workaround because updated() called twice
+    log.info "updated() --- cmds: $cmds"
+    //return cmds
 }
 
 def autoLockToggle() {
     def cmds = ""
-    def myTime = 30
-    //if ( settings.autoLock && device.getDataValue("manufacturer") == "Yale" ) myTime = settings.autoLock
-    if ( settings.autoLock ) myTime = settings.autoLock
+    def myTime = ( settings.autoLock ) ? settings.autoLock : 30
+    //def myTime =( settings.autoLock && device.getDataValue("manufacturer") == "Yale" ) ? settings.autoLock : 30
     if ( device.currentValue("autoLockTime") > 0 ) myTime = 0
     cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(myTime,8))
     log.debug "autoLockToggle() --- cmds: $cmds"
@@ -218,6 +273,16 @@ def oneTouchToggle() {
     if ( device.currentValue("oneTouch") != 0 ) value = 0
     cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK, TYPE_BOOL, value)
     log.debug "oneTouchToggle() --- cmds: $cmds"
+    return cmds    
+}
+
+def volumeToggle() {
+    def cmds = ""
+    def value = 1
+    if ( device.currentValue("volume") == "High" ) value = 0
+    if ( device.currentValue("volume") == "Low" ) value = 2
+    cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME, TYPE_U8, value)
+    log.debug "volumeToggle() --- cmds: $cmds"
     return cmds    
 }
 
@@ -265,6 +330,7 @@ def resetTamperAlert() {
     log.debug "resetTamperAlert() --- ${resultMap}"
     sendEvent(resultMap)
     cmds = zigbee.command( CLUSTER_ALARM, ALARM_CMD_RESET_ALL )
+    log.info "resetTamperAlert() -- cmds: $cmds"
     return cmds
 }
 
@@ -335,11 +401,11 @@ def reloadAllCodes() {
             log.debug "Reloading Code for User ${codeNumber}"
             cmds = setCode(codeNumber, decrypt(entry.value))
             cmds += cmd
-            fireCommand(cmd)
+            fireCommand(cmd) // Temporary Workaround
         }
     }
     log.info "reloadAllCodes() - ${cmds}"
-    return cmds
+    //return cmds
 }
 
 def deleteAllCodes() {
@@ -362,7 +428,7 @@ def updateCodes(codeSettings) {
                 cmd = setCode(n, updated)
                 cmds += cmd
                 fireCommand(cmd) // Temporary Workaround
-			} else if ( (!updated || updated == "0") && current ) {
+			} else if ( (!updated || updated == "0") && current != "" ) {
 				cmd = deleteCode(n)
                 cmds += cmd
                 fireCommand(cmd) // Temporary Workaround
@@ -374,7 +440,7 @@ def updateCodes(codeSettings) {
 		} else log.warn("updateCodes() - unexpected entry code name: $name")
 	}
     log.info "updateCodes() - ${cmds}"
-    return cmds
+    //return cmds
 }
 
 // Private methods
@@ -479,8 +545,32 @@ private Map parseReportAttributeMessage(String description) {
         sendEvent(autoLockMap)
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_ONE_TOUCH_LOCK && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
-        resultMap = [name: "oneTouch", descriptionText: "Current Value of One Touch Lock: ${value}", isStateChange: true, value: value.toString() ]
-        if ( device.currentValue("oneTouch") == value.toString() ) resultMap.isStateChange = false
+        resultMap = [name: "oneTouch", descriptionText: "Current Value of One Touch Lock: ${value}", isStateChange: true, value: value ]
+        if ( device.currentValue("oneTouch") == value ) resultMap.isStateChange = false
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        resultMap = [name: "wrongCodeEntryLimit", descriptionText: "Current Value of Wrong Code Entry Limit: ${value}", isStateChange: true, value: value ]
+        if ( device.currentValue("wrongCodeEntryLimit") == value ) resultMap.isStateChange = false
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_USER_CODE_DISABLE_TIME && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        resultMap = [name: "userCodeDisableTime", descriptionText: "Current Value of User Code Disable Time: ${value}", isStateChange: true, value: value ]
+        if ( device.currentValue("userCodeDisableTime") == value ){ resultMap.isStateChange = false }
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_SOUND_VOLUME && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        resultMap = [name: "volume", isStateChange: true]
+        if ( value == 0 ) {
+            if ( device.currentValue("volume") == "Silent" ) resultMap.isStateChange = false
+            resultMap.descriptionText = "Volume: Silent"
+            resultMap.value = "Silent"
+        } else if ( value == 1 ) {
+            if ( device.currentValue("volume") == "Low" ) resultMap.isStateChange = false
+            resultMap.descriptionText = "Volume: Low"
+            resultMap.value = "Low"
+        } else {
+            if ( device.currentValue("volume") == "High" ) resultMap.isStateChange = false
+            resultMap.descriptionText = "Volume: High"
+            resultMap.value = "High"
+        }
     }/* else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_SEND_PIN_OTA && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         if (value == 0) {
@@ -635,7 +725,8 @@ private Map parseResponseMessage(String description) {
         }
     } else if (descMap.clusterInt == CLUSTER_ALARM && cmd == ALARM_COUNT) {
         def value = Integer.parseInt(descMap.data[0], 16)
-        log.debug "Alarm Triggered: ${value}"
+        def alarm_cluster = "${descMap.data[1]}${descMap.data[2]}"
+        log.debug "Alarm Triggered By Cluster (${alarm_cluster}): ${value}"
         resultMap = [ name: "tamper", displayed: true, value: "detected" ]
         if (value == 0) {
             resultMap.descriptionText = "ALERT: ${linkText} deadbolt jammed"
