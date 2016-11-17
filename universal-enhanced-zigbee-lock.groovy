@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-11-17 : Bug Fixes, Code Optimization - Version Beta 0.5a
  *  2016-11-03 : Realign Custom Commands to other Z-Wave enhanced locks.  Disabled Additional Features not supported by Kwikset locks - Version Beta 0.5
  *  2016-10-27 : Design/Visual Changes: Bug Fixes, Volume Control, Force Reconfigure - Version Alpha 0.4 (Last Planned Alpha Version)
  *  2016-10-26 : Major Design Changes: Optimization, Tamper Alarm, Additional Attributes - Version Alpha 0.3
@@ -564,21 +565,17 @@ private Map parseReportAttributeMessage(String description) {
         def linkText = getLinkText(device)
         resultMap.name = "lock"
         if (value == 0) {
-            resultMap.value = "unknown"
-            resultMap.descriptionText = "${linkText} is not fully locked"
-            resultMap.displayed = true
+            resultMap.isStateChange = ( device.currentValue("lock") == "unknown" ) ? false : true
+            resultMap += [ value: "unknown", descriptionText: "${linkText} is not fully locked", displayed: true ]
         } else if (value == 1) {
-            resultMap.value = "locked"
-            resultMap.descriptionText = "${linkText} is locked"
-            resultMap.displayed = false
+            resultMap.isStateChange = ( device.currentValue("lock") == "locked" ) ? false : true
+            resultMap += [ value: "locked", descriptionText: "${linkText} is locked", displayed: false ]
         } else if (value == 2) {
-            resultMap.value = "unlocked"
-            resultMap.descriptionText = "${linkText} is unlocked"
-            resultMap.displayed = false
+            resultMap.isStateChange = ( device.currentValue("lock") == "unlocked" ) ? false : true
+            resultMap += [ value: "unlocked", descriptionText: "${linkText} is unlocked", displayed: false ]
         } else {
-            resultMap.value = "unknown"
-            resultMap.descriptionText = "${linkText} is in unknown lock state"
-            resultMap.displayed = true
+            resultMap.isStateChange = ( device.currentValue("lock") == "unknown" ) ? false : true
+            resultMap += [ value: "unknown", descriptionText: "${linkText} is in an unknown state", displayed: true ]
         }
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_MIN_PIN_LENGTH && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
@@ -642,16 +639,13 @@ private Map parseReportAttributeMessage(String description) {
         if (device.getDataValue("manufacturer") == "Yale") {
             if ( value == 0 ) {
                 if ( device.currentValue("volume") == "Silent" ) resultMap.isStateChange = false
-                resultMap.descriptionText = "Volume: Silent"
-                resultMap.value = "Silent"
+                resultMap += [ descriptionText: "Volume: Silent", value: "Silent" ]
             } else if ( value == 1 ) {
                 if ( device.currentValue("volume") == "Low" ) resultMap.isStateChange = false
-                resultMap.descriptionText = "Volume: Low"
-                resultMap.value = "Low"
+                resultMap += [ descriptionText: "Volume: Low", value: "Low" ]
             } else {
                 if ( device.currentValue("volume") == "High" ) resultMap.isStateChange = false
-                resultMap.descriptionText = "Volume: High"
-                resultMap.value = "High"
+                resultMap += [ descriptionText: "Volume: High", value: "High" ]
             }
         } else {
             resultMap.value = "unsupported"
@@ -678,66 +672,55 @@ private Map parseResponseMessage(String description) {
     if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_RESPONSE_OPERATION_EVENT) {
         def value = Integer.parseInt(descMap.data[0], 16)
         def user = Integer.parseInt(descMap.data[2], 16)
-        def type = ""
-        resultMap.name = "operationEvent"
+        def type
+        resultMap.name = "lock"
         if (value == 0){
-            type = "locally"
-            if (user && user != 255) {
-                type += " by user ${user}"
-                resultMap = [ name: "lock", data: [ usedCode: user ] ]
-            }
+            type = ( user == 255 ) ? "locally" : "locally by user ${user}"
+            resultMap.data = [ usedCode: user, type: "keypad" ]
         } else if (value == 1){
-            type = "remotely"
-            if (user && user != 255) {
-                type += " by user ${user}"
-                resultMap = [ name: "lock", data: [ usedCode: user ] ]
-            }
+            type = ( user == 255 ) ? "remotely by SmartThings" : "remotely by user ${user}"
+            resultMap.data = [ usedCode: user, type: "remotely" ]
         } else if (value == 2){
-            type = "manually"
+            type = ( user == 255 ) ? "manually" : "manually by user ${user}"
+            resultMap.data =  [ usedCode: user, type: "manually" ]
         } else {
             log.info "Operation Event -- ignored"
             return
         }
         switch (Integer.parseInt(descMap.data[1], 16)) {
             case 1:
-                resultMap.descriptionText = "${linkText} locked ${type}"
-                resultMap.value = "locked"
+                resultMap += [ descriptionText: "${linkText} locked ${type}", value: "locked" ]
 				break
             case 2:
-                resultMap.descriptionText = "${linkText} unlocked ${type}"
-                resultMap.value = "unlocked"
+                resultMap += [ descriptionText: "${linkText} unlocked ${type}", value: "unlocked" ]
 				break
             case 3: //Lock Failure Invalid Pin
             case 4: //Lock Failure Invalid Schedule
+                resultMap.name = "operationEvent"
                 resultMap.descriptionText = "Invalid PIN entered ${type}"
                 break
             case 5: //Unlock Invalid PIN
             case 6: //Unlock Invalid Schedule
+                resultMap.name = "operationEvent"
                 resultMap.descriptionText = "Invalid PIN entered ${type}"
 				break
             case 7:
-                resultMap.descriptionText = "${linkText} locked ${type} from keypad"
-                resultMap.value = "locked"
+                resultMap += [ descriptionText: "${linkText} locked ${type} from keypad",  data: [ usedCode: user, type: "keypad" ], value: "locked" ]
 				break
             case 8:
-                resultMap.descriptionText = "${linkText} locked ${type} with key"
-                resultMap.value = "locked"
+                resultMap += [ descriptionText: "${linkText} locked ${type} with key",  data: [ usedCode: user, type: "key" ], value: "locked" ]
 				break
             case 9:
-                resultMap.descriptionText = "${linkText} unlocked ${type} with key"
-                resultMap.value = "unlocked"
+                resultMap += [ descriptionText: "${linkText} unlocked ${type} with key",  data: [ usedCode: user, type: "key" ], value: "unlocked" ]
 				break
             case 10:
-                resultMap.descriptionText = "${linkText} locked automatically"
-                resultMap.value = "locked"
+                resultMap += [ descriptionText: "${linkText} locked automatically", value: "locked" ]
 				break
             case 13:
-                resultMap.descriptionText = "${linkText} locked ${type}"
-                resultMap.value = "locked"
+                resultMap += [ descriptionText: "${linkText} locked ${type}", value: "locked" ]
 				break
             case 14:
-                resultMap.descriptionText = "${linkText} unlocked ${type}"
-                resultMap.value = "unlocked"
+                resultMap += [ descriptionText: "${linkText} unlocked ${type}", value: "unlocked" ]
 				break
         }
         resultMap.displayed = true
