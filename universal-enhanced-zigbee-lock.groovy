@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-12-20 : Bug Fixes, Delete All Codes Confirmation - Version Release Candidate 0.6a
  *  2016-12-20 : Cleaner Interface for Kwikset Locks. Added Privacy Mode.  Code Optimizations - Version Release Candidate 0.6
  *  2016-11-17 : Bug Fixes, Code Optimization - Version Beta 0.5a
  *  2016-11-03 : Realign Custom Commands to other Z-Wave enhanced locks.  Disabled Additional Features not supported by Kwikset locks - Version Beta 0.5
@@ -467,7 +468,7 @@ def requestCode(codeNumber) {
     if (state.disableLocalPINStore){
         if (codeNumber.toInteger() >= 0 && codeNumber.toInteger() <= getNumPINUsers() ){
 	        log.debug "Getting code $codeNumber"
-            cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_CLEAR_CODE_GET, "${zigbee.convertToHexString(codeNumber.toInteger(),2)}00")
+            cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_USER_CODE_GET, "${zigbee.convertToHexString(codeNumber.toInteger(),2)}00")
         }else{
             log.debug "Invalid Input: Unable to get code for $codeNumber"
         }
@@ -660,7 +661,7 @@ private Map parseReportAttributeMessage(String description) {
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_PRIVACY_MODE && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         def privacyMap = [name: "privacyMode", isStateChange: true, displayed: false, value: value ]
-        resultMap = [name: "privacyModeTile", isStateChange: true, displayed: true, discriptionText: "Current Value of Privacy Mode: ${value}" ]
+        resultMap = [name: "privacyModeTile", isStateChange: true, displayed: true, descriptionText: "Current Value of Privacy Mode: ${value}" ]
         if ( device.currentValue("privacyMode") == value ) {
             resultMap.displayed = false
             privacyMap.isStateChange = false
@@ -800,13 +801,25 @@ private Map parseResponseMessage(String description) {
                 }
 				break
             case 3:
-                resultMap.descriptionText = "User ${codeNumber}'s PIN code deleted ${type}"
-                if ( resultMap.value == codeNumber && resultMap.data["code"] == "" ){
+                if ( codeNumber == 255 ) {
+                    resultMap.descriptionText = "All PIN Codes Deleted"
+                    resultMap.value = ""
+                    resultMap.data = [ code: "" ]
+                    state.each { entry ->
+                        //iterate through all the state entries to delete them
+                        if ( entry.key ==~ /^code\d+$/ ) {
+                            state[entry.key] = ""
+                        }
+                    }             
+                } else {
+                    resultMap.descriptionText = "User ${codeNumber}'s PIN code deleted ${type}"
+                    if ( resultMap.value == codeNumber && resultMap.data["code"] == "" ){
                     resultMap.isStateChange = false
+                    }
+                    resultMap.value = codeNumber
+                    resultMap.data = [ code: "" ]
+                    state["code${codeNumber}"] = ""
                 }
-                resultMap.value = codeNumber
-                resultMap.data = [ code: "" ]
-                state["code${codeNumber}"] = ""
 				break
             case 4:
                 resultMap.descriptionText = "User ${codeNumber}'s PIN code changed ${type}"
