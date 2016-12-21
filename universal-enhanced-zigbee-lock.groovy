@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-12-20 : Cleaner Interface for Kwikset Locks. Added Privacy Mode.  Code Optimizations - Version Release Candidate 0.6
  *  2016-11-17 : Bug Fixes, Code Optimization - Version Beta 0.5a
  *  2016-11-03 : Realign Custom Commands to other Z-Wave enhanced locks.  Disabled Additional Features not supported by Kwikset locks - Version Beta 0.5
  *  2016-10-27 : Design/Visual Changes: Bug Fixes, Volume Control, Force Reconfigure - Version Alpha 0.4 (Last Planned Alpha Version)
@@ -60,6 +61,8 @@
         command "disableAutolock"
         command "enableOneTouch"
         command "disableOneTouch"
+        command "enablePrivacyMode"
+        command "disablePrivacyMode"
         command "enableAudio"
         command "enableAudioLow"
         command "enableAudioHigh"
@@ -70,6 +73,7 @@
         attribute "userCodeDisableTime", "number"
         attribute "autoLockTime", "number"
         attribute "oneTouch", "number"
+        attribute "privacyMode", "number"
         attribute "volume", "string"
         attribute "numPINUsers", "number"
         attribute "invalidCode", "enum", [true,false]
@@ -118,14 +122,27 @@
             state "autoLockEnabled", label:"Timed Auto Lock Enabled", action:"disableAutolock", icon:"st.Health & Wellness.health7", nextState:"autoLockEChanging"
             state "autoLockDChanging", label:'Updating . . .', icon: "st.samsung.da.washer_ic_cancel"
             state "autoLockEChanging", label:'Updating . . .', icon: "st.Health & Wellness.health7"
-            state "unsupported", label:"Unsupported", icon:"st.Health & Wellness.health7"
+            state "unsupportedAutoLockDisabled", label:"Timed Auto Lock Disabled", icon:"st.samsung.da.washer_ic_cancel"
+            state "unsupportedAutoLockEnabled", label:"Timed Auto Lock Enabled", icon:"st.Health & Wellness.health7"
+            state "unsupported", label:"Unsupported", icon:"st.samsung.da.washer_ic_cancel"
 		}
         standardTile("oneTouchTile", "device.oneTouchTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "oneTouchDisabled", label:'One Touch Lock Disabled', action:"enableOneTouch", icon:"st.security.alarm.on", nextState:"oneTouch0Changing"
             state "oneTouchEnabled", label:'One Touch Lock Enabled', action:"disableOneTouch", icon:"st.security.alarm.off", nextState:"oneTouch1Changing"
             state "oneTouch0Changing", label:'Updating . . .', icon:"st.security.alarm.on"
             state "oneTouch1Changing", label:'Updating . . .', icon:"st.security.alarm.off"
-            state "upsupported", label:'Unsupported', icon:"st.security.alarm.on"
+            state "unsupportedOneTouchDisabled", label:'One Touch Lock Disabled', icon:"st.security.alarm.on"
+            state "unsupportedOneTouchEnabled", label:'One Touch Lock Enabled', icon:"st.security.alarm.off"
+            state "unsupported", label:'Unsupported', icon:"st.security.alarm.on"
+		}
+        standardTile("privacyModeTile", "device.privacyModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+            state "privacyDisabled", label:'Privacy Mode Disabled', action:"enablePrivacyMode", icon:"st.security.alarm.on", nextState:"privacy0Changing"
+            state "privacyEnabled", label:'Privacy Mode Enabled', action:"disablePrivacyMode", icon:"st.security.alarm.off", nextState:"privacy1Changing"
+            state "privacy0Changing", label:'Updating . . .', icon:"st.security.alarm.on"
+            state "privacy1Changing", label:'Updating . . .', icon:"st.security.alarm.off"
+            state "unsupportedPrivacyDisabled", label:'Privacy Mode Disabled', icon:"st.security.alarm.on"
+            state "unsupportedPrivacyEnabled", label:'Privacy Mode Enabled', icon:"st.security.alarm.off"
+            state "unsupported", label:'Unsupported', icon:"st.security.alarm.on"
 		}
         standardTile("volume", "device.volume", inactiveLabel:false, width:2, height:2) {
             state "Silent", label:"Silent", action:"enableAudioLow", icon:"st.custom.sonos.muted", nextState:"volumeSilentChanging", backgroundColor:"#ffffff"
@@ -134,6 +151,9 @@
             state "volumeSilentChanging", label:'. . .', action:"refresh", icon:"st.custom.sonos.muted", backgroundColor:"#a0a0ff"
             state "volumeLowChanging", label:'. . .', action:"refresh", icon:"st.custom.sonos.unmuted", backgroundColor:"#a070a0"
             state "volumeHighChanging", label:'. . .', action:"refresh", icon:"st.custom.sonos.unmuted", backgroundColor:"#ffa0a0"
+            state "unsupportedSilent", label:"Silent", icon:"st.custom.sonos.muted", backgroundColor:"#ffffff"
+            state "unsupportedLow", label:"Low", icon:"st.custom.sonos.unmuted", backgroundColor:"#7070ee"
+            state "unsupportedHigh", label:"High", icon:"st.custom.sonos.unmuted", backgroundColor:"#ee7070"
             state "unsupported", label:"Unsupported", icon:"st.custom.sonos.muted", backgroundColor:"#ffffff"
 		}
 		standardTile("tamper", "device.tamper", inactiveLabel:false, width:2, height:2) {
@@ -144,7 +164,7 @@
             state "reconfigure", label:'Force Reconfigure', action:"configure", icon:"st.Office.office11"
 		}
 		main "toggle"
-		details(["toggle", "lock", "unlock", "battery", "tamper", "autoLockTile", "oneTouchTile", "volume", "refresh", "reconfigure"])
+		details(["toggle", "lock", "unlock", "battery", "tamper", "autoLockTile", "oneTouchTile", "volume", "privacyModeTile", "refresh", "reconfigure"])
 	}
     
 	preferences {
@@ -179,6 +199,7 @@ private getDOORLOCK_ATTR_MIN_PIN_LENGTH() { 0x0018 }
 private getDOORLOCK_ATTR_AUTO_RELOCK_TIME() { 0x0023 }
 private getDOORLOCK_ATTR_SOUND_VOLUME() { 0x0024 }
 private getDOORLOCK_ATTR_ONE_TOUCH_LOCK() { 0x0029 }
+private getDOORLOCK_ATTR_PRIVACY_MODE() { 0x002B }
 private getDOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT() { 0x0030 }
 private getDOORLOCK_ATTR_USER_CODE_DISABLE_TIME() { 0x0031 }
 private getDOORLOCK_ATTR_SEND_PIN_OTA() { 0x0032 }
@@ -212,15 +233,13 @@ def configure() {
                                   TYPE_U32, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK,
                                   TYPE_BOOL, 0, 21600, null) +
+        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE,
+                                  TYPE_BOOL, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME,
-                                  TYPE_U8, 0, 21600, null) +
-        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT,
-                                  TYPE_U8, 0, 21600, null) +
-        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME,
                                   TYPE_U8, 0, 21600, null)
         
     log.info "configure() --- cmds: $cmds"
-    return cmds + refresh() // send refresh cmds as part of config     
+    return cmds + refresh() // send refresh cmds as part of config
 }
 
 def refresh() {
@@ -233,14 +252,11 @@ def refresh() {
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_NUM_PIN_USERS) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME)
         reportAllCodes()
-        if (device.getDataValue("manufacturer") == "Kwikset") {
-            sendEvent([name: "autoLockTile", value: "unsupported", isStateChange: true, displayed: false])
-            sendEvent([name: "oneTouchTile", value: "unsupported", isStateChange: true, displayed: false])
-        }
     log.info "refresh() --- cmds: $cmds"
     return cmds
 }
@@ -250,15 +266,17 @@ def updated() {
     def cmd = ""
     def wrongEntryLimit = (settings.wrongLimit) ? settings.wrongLimit : 5
     def disableTime = (settings.lockoutTime) ? settings.lockoutTime : 60
-    def myTime =( settings.autoLock && device.getDataValue("manufacturer") == "Yale" ) ? settings.autoLock : 30
+    def myTime =( settings.autoLock && device.getDataValue("manufacturer") == "Kwikset" ) ? 30 : settings.autoLock
     if ( (Calendar.getInstance().getTimeInMillis() - state.updatedDate) < 7000 ) return // Needed because updated() is being called multiple times
-    if ( device.currentValue("wrongCodeEntryLimit") != wrongEntryLimit && device.getDataValue("manufacturer") == "Yale" ) {
-        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT, TYPE_U8, zigbee.convertToHexString(wrongEntryLimit,2))
+    if ( device.currentValue("wrongCodeEntryLimit") != wrongEntryLimit && device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT, TYPE_U8, zigbee.convertToHexString(wrongEntryLimit,2)) + 
+              zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT) // Saves battery reporting change as can't be set manually
         cmds += cmd
         fireCommand(cmd)
     }
-    if ( device.currentValue("userCodeDisableTime") != disableTime && device.getDataValue("manufacturer") == "Yale" ) {
-        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME, TYPE_U8, zigbee.convertToHexString(disableTime,2))
+    if ( device.currentValue("userCodeDisableTime") != disableTime && device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME, TYPE_U8, zigbee.convertToHexString(disableTime,2)) +
+              zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME) // Saves battery reporting change as can't be set manually
         cmds += cmd
         fireCommand(cmd)
     }
@@ -269,36 +287,35 @@ def updated() {
     }
     state.updatedDate = Calendar.getInstance().getTimeInMillis() //Part of workaround because updated() called multiple times
     log.info "updated() --- cmds: $cmds"
-    //return cmds
 }
 
 //Beginning of Custom Commands Section
 def enableAutolock(myTime = settings.autoLock) {
     def cmds = ""
     if ( ! myTime ) myTime = 30
-    if ( device.getDataValue("manufacturer") == "Yale" ) {
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(myTime,8))
     } else {
-        log.warn "enableAutolock() --- command not supported for this lock"
+        log.warn "enableAutoLock() --- command not supported for this lock"
     }
-    log.debug "enableAutolock() --- cmds: $cmds"
+    log.debug "enableAutoLock() --- cmds: $cmds"
     return cmds    
 }
 
 def disableAutolock() {
     def cmds = ""
-    if ( device.getDataValue("manufacturer") == "Yale" ) {
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(0,8))
     } else {
-        log.warn "disableAutolock() --- command not supported for this lock"
+        log.warn "disableAutoLock() --- command not supported for this lock"
     }
-    log.debug "disableAutolock() --- cmds: $cmds"
+    log.debug "disableAutoLock() --- cmds: $cmds"
     return cmds    
 }
 
 def enableOneTouch() {
     def cmds = ""
-    if ( device.getDataValue("manufacturer") == "Yale" ) {
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK, TYPE_BOOL, 1)
     } else {
         log.warn "enableOneTouch() --- command not supported for this lock"
@@ -309,7 +326,7 @@ def enableOneTouch() {
 
 def disableOneTouch() {
     def cmds = ""
-    if ( device.getDataValue("manufacturer") == "Yale" ) {
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK, TYPE_BOOL, 0)
     } else {
         log.warn "disableOneTouch() --- command not supported for this lock"
@@ -318,11 +335,33 @@ def disableOneTouch() {
     return cmds    
 }
 
+def enablePrivacyMode() {
+    def cmds = ""
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE, TYPE_BOOL, 1)
+    } else {
+        log.warn "enablePrivacyMode() --- command not supported for this lock"
+    }
+    log.debug "enablePrivacyMode() --- cmds: $cmds"
+    return cmds 
+}
+
+def disablePrivacyMode() {
+    def cmds = ""
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE, TYPE_BOOL, 0)
+    } else {
+        log.warn "disablePrivacyMode() --- command not supported for this lock"
+    }
+    log.debug "disablePrivacyMode() --- cmds: $cmds"
+    return cmds  
+}
+
 def enableAudio(volume = "Low") {
     def cmds = ""
     def value = 1
     if ( volume.toString().equalsIgnoreCase( "High" ) ) value = 2
-    if ( device.getDataValue("manufacturer") == "Yale" ) {
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME, TYPE_U8, value)
     } else {
         log.warn "enableAudio() --- command not supported for this lock"
@@ -341,7 +380,7 @@ def enableAudioHigh() {
 
 def disableAudio() {
     def cmds = ""
-    if ( device.getDataValue("manufacturer") == "Yale" ) {
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME, TYPE_U8, 0)
     } else {
         log.warn "disableAudio() --- command not supported for this lock"
@@ -394,7 +433,7 @@ def resetTamperAlert() {
     }
     log.debug "resetTamperAlert() --- ${resultMap}"
     sendEvent(resultMap)
-    if ( device.currentValue("invalidCode") ) sendEvent([ name: invalidCode, isStateChange: true, displayed: false, value: false])
+    if ( device.currentValue("invalidCode") ) sendEvent([ name: "invalidCode", isStateChange: true, displayed: false, value: false])
     cmds = zigbee.command( CLUSTER_ALARM, ALARM_CMD_RESET_ALL )
     log.info "resetTamperAlert() -- cmds: $cmds"
     return cmds
@@ -493,11 +532,11 @@ def updateCodes(codeSettings) {
 			if (updated.size() >= getMinPINLength() && updated.size() <= getMaxPINLength() && updated != current) {
                 cmd = setCode(n, updated)
                 cmds += cmd
-                fireCommand(cmd) // Temporary Workaround
+                fireCommand(cmd)
 			} else if ( (!updated || updated == "0") && current != "" ) {
 				cmd = deleteCode(n)
                 cmds += cmd
-                fireCommand(cmd) // Temporary Workaround
+                fireCommand(cmd)
 			} else if ( updated.size() < getMinPINLength() || updated.size() > getMaxPINLength() ) {
                 log.warn("updateCodes() - Invalid PIN length $name: $updated") 
             } else if ( updated == current ) {
@@ -506,7 +545,6 @@ def updateCodes(codeSettings) {
 		} else log.warn("updateCodes() - unexpected entry code name: $name")
 	}
     log.info "updateCodes() - ${cmds}"
-    //return cmds
 }
 
 // Private methods
@@ -590,22 +628,16 @@ private Map parseReportAttributeMessage(String description) {
         def value = Integer.parseInt(descMap.value, 16)
         def autoLockMap = [ name: "autoLockTime", displayed: false, isStateChange: true, value: value ]
         resultMap = [ name: "autoLockTile", displayed: true, isStateChange: true, descriptionText: "Current Value of Auto Lock: ${value}" ]
-        if ( value > 0 ){
-            if (device.currentValue("autoLockTime") == value){
-                autoLockMap.isStateChange = false
-                autoLockMap.displayed = false
-            }
-            resultMap.value = "autoLockEnabled"
-        } else {
-            if (device.currentValue("autoLockTime") == 0){
-                autoLockMap.isStateChange = false
-                autoLockMap.displayed = false
-            }
-            resultMap.value = "autoLockDisabled"
+        if (device.currentValue("autoLockTime") == value){
+            autoLockMap.isStateChange = false
+            resultMap.displayed = false
         }
-        if (device.getDataValue("manufacturer") != "Yale") {
+        if ( value > 0 ){
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedAutoLockEnabled" : "autoLockEnabled"
+        } else if ( value == 0 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedAutoLockDisabled" : "autoLockDisabled"
+        } else {
             resultMap.value = "unsupported"
-            resultMap.isStateChange = false
         }
         log.debug "autoLockTime --- ${autoLockMap}"
         sendEvent(autoLockMap)
@@ -614,17 +646,33 @@ private Map parseReportAttributeMessage(String description) {
         def oneTouchMap = [name: "oneTouch", displayed: false, isStateChange: true, value: value ]
         resultMap = [name: "oneTouchTile", isStateChange: true, displayed: true, descriptionText: "Current Value of One Touch Lock: ${value}"  ]
         if ( device.currentValue("oneTouch") == value ) {
-            resultMap.isStateChange = false
+            resultMap.displayed = false
             oneTouchMap.isStateChange = false
         }
-        if (device.getDataValue("manufacturer") == "Yale") {
-            if ( value == 0 ) resultMap.value = "oneTouchDisabled"
-            if ( value == 1 ) resultMap.value = "oneTouchEnabled"
+        if ( value == 0 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOneTouchDisabled" : "oneTouchDisabled"
+        } else if ( value == 1 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOneTouchEnabled" : "oneTouchEnabled"
         } else {
             resultMap.value = "unsupported"
-            resultMap.isStateChange = false
         }
         sendEvent(oneTouchMap)
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_PRIVACY_MODE && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        def privacyMap = [name: "privacyMode", isStateChange: true, displayed: false, value: value ]
+        resultMap = [name: "privacyModeTile", isStateChange: true, displayed: true, discriptionText: "Current Value of Privacy Mode: ${value}" ]
+        if ( device.currentValue("privacyMode") == value ) {
+            resultMap.displayed = false
+            privacyMap.isStateChange = false
+        } 
+        if ( value == 0 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedPrivacyDisabled" : "privacyDisabled"
+        } else if ( value == 1 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedPrivacyEnabled" : "privacyEnabled"
+        } else {
+            resultMap.value = "unsupported"
+        }
+        if ( device.currentValue("wrongCodeEntryLimit") == value ) resultMap.isStateChange = false
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         resultMap = [name: "wrongCodeEntryLimit", descriptionText: "Current Value of Wrong Code Entry Limit: ${value}", isStateChange: true, value: value ]
@@ -632,21 +680,19 @@ private Map parseReportAttributeMessage(String description) {
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_USER_CODE_DISABLE_TIME && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         resultMap = [name: "userCodeDisableTime", descriptionText: "Current Value of User Code Disable Time: ${value}", isStateChange: true, value: value ]
-        if ( device.currentValue("userCodeDisableTime") == value ){ resultMap.isStateChange = false }
+        if ( device.currentValue("userCodeDisableTime") == value ){ resultMap += [ isStateChange: false, displayed: false ] }
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_SOUND_VOLUME && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         resultMap = [name: "volume", isStateChange: true]
-        if (device.getDataValue("manufacturer") == "Yale") {
-            if ( value == 0 ) {
-                if ( device.currentValue("volume") == "Silent" ) resultMap.isStateChange = false
-                resultMap += [ descriptionText: "Volume: Silent", value: "Silent" ]
-            } else if ( value == 1 ) {
-                if ( device.currentValue("volume") == "Low" ) resultMap.isStateChange = false
-                resultMap += [ descriptionText: "Volume: Low", value: "Low" ]
-            } else {
-                if ( device.currentValue("volume") == "High" ) resultMap.isStateChange = false
-                resultMap += [ descriptionText: "Volume: High", value: "High" ]
-            }
+        if ( value == 0 ) {
+            if ( device.currentValue("volume") == "Silent" ) resultMap.isStateChange = false
+            resultMap += (device.getDataValue("manufacturer") == "Kwikset") ? [ descriptionText: "Volume: Silent", value: "unsuportedSilent" ] : [ descriptionText: "Volume: Silent", value: "Silent" ]
+        } else if ( value == 1 ) {
+            if ( device.currentValue("volume") == "Low" ) resultMap.isStateChange = false
+            resultMap += (device.getDataValue("manufacturer") == "Kwikset") ? [ descriptionText: "Volume: Low", value: "unsuportedLow" ] : [ descriptionText: "Volume: Low", value: "Low" ]
+        } else if ( value == 2 ){
+            if ( device.currentValue("volume") == "High" ) resultMap.isStateChange = false
+            resultMap += (device.getDataValue("manufacturer") == "Kwikset") ? [ descriptionText: "Volume: High", value: "unsuportedHigh" ] : [ descriptionText: "Volume: High", value: "High" ]
         } else {
             resultMap.value = "unsupported"
             resultMap.isStateChange = false
