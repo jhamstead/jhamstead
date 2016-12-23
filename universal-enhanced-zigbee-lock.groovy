@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-12-22 : Added Keypad Disable/Enable.  Added Privacy Button, LED Status but have memory constraints - Version Release Candidate 0.7
  *  2016-12-20 : Bug Fixes, Delete All Codes Confirmation - Version Release Candidate 0.6a
  *  2016-12-20 : Cleaner Interface for Kwikset Locks. Added Privacy Mode.  Code Optimizations - Version Release Candidate 0.6
  *  2016-11-17 : Bug Fixes, Code Optimization - Version Beta 0.5a
@@ -62,19 +63,25 @@
         command "disableAutolock"
         command "enableOneTouch"
         command "disableOneTouch"
-        command "enablePrivacyMode"
-        command "disablePrivacyMode"
+        command "enableKeypad"
+        command "disableKeypad"
         command "enableAudio"
         command "enableAudioLow"
         command "enableAudioHigh"
         command "disableAudio"
+        command "enablePrivacyButton"
+        command "disablePrivacyButton"
+        command "enableLED"
+        command "disableLED"
         command "resetTamperAlert"
         
         attribute "wrongCodeEntryLimit", "number"
         attribute "userCodeDisableTime", "number"
         attribute "autoLockTime", "number"
         attribute "oneTouch", "number"
-        attribute "privacyMode", "number"
+        attribute "operatingMode", "number"
+        attribute "privacyButton", "number"
+        attribute "LED", "number"
         attribute "volume", "string"
         attribute "numPINUsers", "number"
         attribute "invalidCode", "enum", [true,false]
@@ -136,14 +143,14 @@
             state "unsupportedOneTouchEnabled", label:'One Touch Lock Enabled', icon:"st.security.alarm.off"
             state "unsupported", label:'Unsupported', icon:"st.security.alarm.on"
 		}
-        standardTile("privacyModeTile", "device.privacyModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "privacyDisabled", label:'Privacy Mode Disabled', action:"enablePrivacyMode", icon:"st.security.alarm.on", nextState:"privacy0Changing"
-            state "privacyEnabled", label:'Privacy Mode Enabled', action:"disablePrivacyMode", icon:"st.security.alarm.off", nextState:"privacy1Changing"
-            state "privacy0Changing", label:'Updating . . .', icon:"st.security.alarm.on"
-            state "privacy1Changing", label:'Updating . . .', icon:"st.security.alarm.off"
-            state "unsupportedPrivacyDisabled", label:'Privacy Mode Disabled', icon:"st.security.alarm.on"
-            state "unsupportedPrivacyEnabled", label:'Privacy Mode Enabled', icon:"st.security.alarm.off"
-            state "unsupported", label:'Unsupported', icon:"st.security.alarm.on"
+        standardTile("operatingModeTile", "device.operatingModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+            state "unsupportedOperatingEnabled", label:"`                    Keypad Enabled", icon:"st.unknown.zwave.remote-controller"
+            state "unsupportedOperatingDisabled", label:"`                    Keypad Disabled", icon:"st.unknown.zwave.remote-controller"
+            state "unsupported", label:"Unsupported", icon:"st.unknown.zwave.remote-controller"
+            state "operatingDisabled", label:"`                    Keypad Disabled", action:"enableKeypad", icon:"st.unknown.zwave.remote-controller", nextState:"operating0Changing"
+            state "operatingEnabled", label:"`                    Keypad Enabled", action:"disableKeypad", icon:"st.unknown.zwave.remote-controller", nextState:"operating1Changing"
+            state "operating0Changing", label:"`                    Updating . . .", icon:"st.unknown.zwave.remote-controller"
+            state "operating1Changing", label:"`                    Updating . . .", icon:"st.unknown.zwave.remote-controller"
 		}
         standardTile("volume", "device.volume", inactiveLabel:false, width:2, height:2) {
             state "Silent", label:"Silent", action:"enableAudioLow", icon:"st.custom.sonos.muted", nextState:"volumeSilentChanging", backgroundColor:"#ffffff"
@@ -162,10 +169,31 @@
 			state "detected", label:'Reset', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm", backgroundColor:"#ff0000"
 		}
 		standardTile("reconfigure", "device.reconfigure", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "reconfigure", label:'Force Reconfigure', action:"configure", icon:"st.Office.office11"
+            state "reconfigure", label:'Force Reconfigure', action:"configure", icon:"st.secondary.tools"
+		}
+        valueTile("labelManual", "device.labelManual", inactiveLabel:true, decoration:"flat", width:6, height:2) {
+            state "default", label: 'NOTE: If you manually change any of the options below on the lock, you must click refresh.  They will not automatically update.'
+        }
+        standardTile("privacyModeTile", "device.privacyModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+            state "privacyDisabled", label:'Privacy Button Disabled', action:"enablePrivacyButton", icon:"st.illuminance.illuminance.dark", nextState:"privacy0Changing"
+            state "privacyEnabled", label:'Privacy Button Enabled', action:"disablePrivacyButton", icon:"st.illuminance.illuminance.light", nextState:"privacy1Changing"
+            state "privacy0Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.dark"
+            state "privacy1Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.light"
+            state "unsupportedPrivacyDisabled", label:'Privacy Button Disabled', icon:"st.illuminance.illuminance.dark"
+            state "unsupportedPrivacyEnabled", label:'Privacy Button Enabled', icon:"st.illuminance.illuminance.light"
+            state "unsupported", label:'Unsupported', icon:"st.illuminance.illuminance.dark"
+		}
+        standardTile("LEDTile", "device.LEDTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+            state "LEDDisabled", label:'Internal LED Disabled', action:"enableLED", icon:"st.illuminance.illuminance.dark", nextState:"LED0Changing"
+            state "LEDEnabled", label:'Internal LED Enabled', action:"disableLED", icon:"st.illuminance.illuminance.light", nextState:"LED1Changing"
+            state "LED0Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.dark"
+            state "LED1Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.light"
+            state "unsupportedLEDDisabled", label:'Internal LED Disabled', icon:"st.illuminance.illuminance.dark"
+            state "unsupportedLEDEnabled", label:'Internal LED Enabled', icon:"st.illuminance.illuminance.light"
+            state "unsupported", label:'Unsupported', icon:"st.illuminance.illuminance.dark"
 		}
 		main "toggle"
-		details(["toggle", "lock", "unlock", "battery", "tamper", "autoLockTile", "oneTouchTile", "volume", "privacyModeTile", "refresh", "reconfigure"])
+		details(["toggle", "lock", "unlock", "battery", "tamper", "autoLockTile", "oneTouchTile", "volume", "operatingModeTile", "refresh", "labelManual", "privacyModeTile", "LEDTile", "reconfigure"])
 	}
     
 	preferences {
@@ -199,15 +227,16 @@ private getDOORLOCK_ATTR_MAX_PIN_LENGTH() { 0x0017 }
 private getDOORLOCK_ATTR_MIN_PIN_LENGTH() { 0x0018 }
 private getDOORLOCK_ATTR_AUTO_RELOCK_TIME() { 0x0023 }
 private getDOORLOCK_ATTR_SOUND_VOLUME() { 0x0024 }
+private getDOORLOCK_ATTR_OPERATING_MODE() { 0x0025 }
 private getDOORLOCK_ATTR_ONE_TOUCH_LOCK() { 0x0029 }
-private getDOORLOCK_ATTR_PRIVACY_MODE() { 0x002B }
+private getDOORLOCK_ATTR_LED_STATUS() { 0x002A }
+private getDOORLOCK_ATTR_PRIVACY_BUTTON() { 0x002B }
 private getDOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT() { 0x0030 }
 private getDOORLOCK_ATTR_USER_CODE_DISABLE_TIME() { 0x0031 }
 private getDOORLOCK_ATTR_SEND_PIN_OTA() { 0x0032 }
 
 private getTYPE_BOOL() { 0x10 }
 private getTYPE_U8() { 0x20 }
-//private getTYPE_U16() { 0x21 }
 private getTYPE_U32() { 0x23 }
 private getTYPE_ENUM8() { 0x30 }
 
@@ -224,8 +253,8 @@ def configure() {
     state.disableLocalPINStore = false
     state.updatedDate = Calendar.getInstance().getTimeInMillis()  //Workaround for repeated updated() calls
     def cmds =
-        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE,
-                                  TYPE_ENUM8, 0, 3600, null) +
+        //zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE,
+        //                          TYPE_ENUM8, 0, 3600, null) +
         zigbee.configureReporting(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING,
                                   TYPE_U8, 600, 21600, 0x01) +
         zigbee.configureReporting(CLUSTER_ALARM, ALARM_COUNT,
@@ -234,8 +263,8 @@ def configure() {
                                   TYPE_U32, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK,
                                   TYPE_BOOL, 0, 21600, null) +
-        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE,
-                                  TYPE_BOOL, 0, 21600, null) +
+        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_OPERATING_MODE,
+                                  TYPE_ENUM8, 0, 3600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME,
                                   TYPE_U8, 0, 21600, null)
         
@@ -253,7 +282,9 @@ def refresh() {
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_NUM_PIN_USERS) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK) +
-        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_OPERATING_MODE) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_BUTTON) +
+        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME)
@@ -336,26 +367,74 @@ def disableOneTouch() {
     return cmds    
 }
 
-def enablePrivacyMode() {
+def enablePrivacyButton() {
     def cmds = ""
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
-        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE, TYPE_BOOL, 1)
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_BUTTON, TYPE_BOOL, 1) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_BUTTON) //Needed because of configuration memory issues
     } else {
-        log.warn "enablePrivacyMode() --- command not supported for this lock"
+        log.warn "enablePrivacyButton() --- command not supported for this lock"
     }
-    log.debug "enablePrivacyMode() --- cmds: $cmds"
+    log.debug "enablePrivacyButton() --- cmds: $cmds"
     return cmds 
 }
 
-def disablePrivacyMode() {
+def disablePrivacyButton() {
     def cmds = ""
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
-        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_MODE, TYPE_BOOL, 0)
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_BUTTON, TYPE_BOOL, 0) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_PRIVACY_BUTTON) //Needed because of configuration memory issues
     } else {
-        log.warn "disablePrivacyMode() --- command not supported for this lock"
+        log.warn "disablePrivacyButton() --- command not supported for this lock"
     }
-    log.debug "disablePrivacyMode() --- cmds: $cmds"
+    log.debug "disablePrivacyButton() --- cmds: $cmds"
     return cmds  
+}
+
+def enableKeypad() {
+    def cmds = ""
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_OPERATING_MODE, TYPE_ENUM8, zigbee.convertToHexString(0,2))
+    } else {
+        log.warn "enableKeypad() --- command not supported for this lock"
+    }
+    log.debug "enableKeypad() --- cmds: $cmds"
+    return cmds 
+}
+
+def disableKeypad() {
+    def cmds = ""
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_OPERATING_MODE, TYPE_ENUM8, zigbee.convertToHexString(2,2))
+    } else {
+        log.warn "disableKeypad() --- command not supported for this lock"
+    }
+    log.debug "disableKeypad() --- cmds: $cmds"
+    return cmds 
+}
+
+def enableLED() {
+    def cmds = ""
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS, TYPE_BOOL, 1) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS) // Needed because of configuration memory issues
+    } else {
+        log.warn "enableLED() --- command not supported for this lock"
+    }
+    log.debug "enableLED() --- cmds: $cmds"
+    return cmds 
+}
+
+def disableLED() {
+    def cmds = ""
+    if ( device.getDataValue("manufacturer") != "Kwikset" ) {
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS, TYPE_BOOL, 0) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS) // Needed because of configuration memory issues
+    } else {
+        log.warn "disableLED() --- command not supported for this lock"
+    }
+    log.debug "disableLED() --- cmds: $cmds"
+    return cmds 
 }
 
 def enableAudio(volume = "Low") {
@@ -658,11 +737,26 @@ private Map parseReportAttributeMessage(String description) {
             resultMap.value = "unsupported"
         }
         sendEvent(oneTouchMap)
-    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_PRIVACY_MODE && descMap.value) {
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_OPERATING_MODE && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
-        def privacyMap = [name: "privacyMode", isStateChange: true, displayed: false, value: value ]
-        resultMap = [name: "privacyModeTile", isStateChange: true, displayed: true, descriptionText: "Current Value of Privacy Mode: ${value}" ]
-        if ( device.currentValue("privacyMode") == value ) {
+        def operatingMap = [name: "operatingMode", isStateChange: true, displayed: false, value: value ]
+        resultMap = [name: "operatingModeTile", isStateChange: true, displayed: true, descriptionText: "Current Value of Operating Mode: ${value}" ]
+        if ( device.currentValue("operatingMode") == value ) {
+            resultMap.displayed = false
+            operatingMap.isStateChange = false
+        } 
+        if ( value == 2 || value == 1 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOperatingDisabled" : "operatingDisabled"
+        } else if ( value == 0 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOperatingEnabled" : "operatingEnabled"
+        } else {
+            resultMap.value = "unsupported"
+        }
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_PRIVACY_BUTTON && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        def privacyMap = [name: "privacyButton", isStateChange: true, displayed: false, value: value ]
+        resultMap = [name: "privacyModeTile", isStateChange: true, displayed: true, descriptionText: "Current Value of Privacy Button: ${value}" ]
+        if ( device.currentValue("privacyButton") == value ) {
             resultMap.displayed = false
             privacyMap.isStateChange = false
         } 
@@ -673,7 +767,21 @@ private Map parseReportAttributeMessage(String description) {
         } else {
             resultMap.value = "unsupported"
         }
-        if ( device.currentValue("wrongCodeEntryLimit") == value ) resultMap.isStateChange = false
+    } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_LED_STATUS && descMap.value) {
+        def value = Integer.parseInt(descMap.value, 16)
+        def LEDMap = [name: "LED", isStateChange: true, displayed: false, value: value ]
+        resultMap = [name: "LEDTile", isStateChange: true, displayed: true, descriptionText: "Current Value of LED: ${value}" ]
+        if ( device.currentValue("LED") == value ) {
+            resultMap.displayed = false
+            LEDMap.isStateChange = false
+        } 
+        if ( value == 0 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedLEDDisabled" : "LEDDisabled"
+        } else if ( value == 1 ) {
+            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedLEDEnabled" : "LEDEnabled"
+        } else {
+            resultMap.value = "unsupported"
+        }
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         resultMap = [name: "wrongCodeEntryLimit", descriptionText: "Current Value of Wrong Code Entry Limit: ${value}", isStateChange: true, value: value ]
