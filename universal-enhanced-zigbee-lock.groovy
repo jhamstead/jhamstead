@@ -173,7 +173,7 @@
             state "reconfigure", label:'Force Reconfigure', action:"configure", icon:"st.secondary.tools"
 		}
         valueTile("labelManual", "device.labelManual", inactiveLabel:true, decoration:"flat", width:6, height:2) {
-            state "default", label: 'NOTE: If you manually change any of the options below on the lock, you must click refresh.  They will not automatically update.'
+            state "default", label: 'NOTE: If you change any of the options below manually outside of SmartThings, you must click refresh.  They will not update automatically.'
         }
         standardTile("privacyModeTile", "device.privacyModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "privacyDisabled", label:'Privacy Button Disabled', action:"enablePrivacyButton", icon:"st.illuminance.illuminance.dark", nextState:"privacy0Changing"
