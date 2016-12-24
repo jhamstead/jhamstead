@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-12-23 : Redesign for memory constraints - Version Release Candidate 0.7a
  *  2016-12-22 : Added Keypad Disable/Enable.  Added Privacy Button, LED Status but have memory constraints - Version Release Candidate 0.7
  *  2016-12-20 : Bug Fixes, Delete All Codes Confirmation - Version Release Candidate 0.6a
  *  2016-12-20 : Cleaner Interface for Kwikset Locks. Added Privacy Mode.  Code Optimizations - Version Release Candidate 0.6
@@ -193,7 +194,7 @@
             state "unsupported", label:'Unsupported', icon:"st.illuminance.illuminance.dark"
 		}
 		main "toggle"
-		details(["toggle", "lock", "unlock", "battery", "tamper", "autoLockTile", "oneTouchTile", "volume", "operatingModeTile", "refresh", "labelManual", "privacyModeTile", "LEDTile", "reconfigure"])
+		details(["toggle", "lock", "unlock", "battery", "tamper", "operatingModeTile", "volume", "labelManual", "autoLockTile", "oneTouchTile", "privacyModeTile", "LEDTile", "refresh", "reconfigure"])
 	}
     
 	preferences {
@@ -253,18 +254,18 @@ def configure() {
     state.disableLocalPINStore = false
     state.updatedDate = Calendar.getInstance().getTimeInMillis()  //Workaround for repeated updated() calls
     def cmds =
-        //zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE,
-        //                          TYPE_ENUM8, 0, 3600, null) +
+        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE,
+                                  TYPE_ENUM8, 0, 3600, null) +
         zigbee.configureReporting(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING,
                                   TYPE_U8, 600, 21600, 0x01) +
         zigbee.configureReporting(CLUSTER_ALARM, ALARM_COUNT,
                                   TYPE_U32, 0, 21600, null) +
-        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME,
+        /*zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME,
                                   TYPE_U32, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK,
-                                  TYPE_BOOL, 0, 21600, null) +
+                                  TYPE_BOOL, 0, 21600, null) +*/
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_OPERATING_MODE,
-                                  TYPE_ENUM8, 0, 3600, null) +
+                                  TYPE_ENUM8, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME,
                                   TYPE_U8, 0, 21600, null)
         
@@ -326,7 +327,8 @@ def enableAutolock(myTime = settings.autoLock) {
     def cmds = ""
     if ( ! myTime ) myTime = 30
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
-        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(myTime,8))
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(myTime,8)) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) //Needed because of configuration memory issues
     } else {
         log.warn "enableAutoLock() --- command not supported for this lock"
     }
@@ -337,7 +339,8 @@ def enableAutolock(myTime = settings.autoLock) {
 def disableAutolock() {
     def cmds = ""
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
-        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(0,8))
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(0,8)) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) //Needed because of configuration memory issues
     } else {
         log.warn "disableAutoLock() --- command not supported for this lock"
     }
@@ -348,7 +351,8 @@ def disableAutolock() {
 def enableOneTouch() {
     def cmds = ""
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
-        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK, TYPE_BOOL, 1)
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK, TYPE_BOOL, 1) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK) //Needed because of configuration memory issues
     } else {
         log.warn "enableOneTouch() --- command not supported for this lock"
     }
@@ -359,7 +363,8 @@ def enableOneTouch() {
 def disableOneTouch() {
     def cmds = ""
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
-        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK, TYPE_BOOL, 0)
+        cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK, TYPE_BOOL, 0) +
+               zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK) //Needed because of configuration memory issues
     } else {
         log.warn "disableOneTouch() --- command not supported for this lock"
     }
