@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-12-24 : Bug Fixes - Version Release Candidate 0.7b
  *  2016-12-23 : Redesign for memory constraints - Version Release Candidate 0.7a
  *  2016-12-22 : Added Keypad Disable/Enable.  Added Privacy Button, LED Status but have memory constraints - Version Release Candidate 0.7
  *  2016-12-20 : Bug Fixes, Delete All Codes Confirmation - Version Release Candidate 0.6a
@@ -260,10 +261,6 @@ def configure() {
                                   TYPE_U8, 600, 21600, 0x01) +
         zigbee.configureReporting(CLUSTER_ALARM, ALARM_COUNT,
                                   TYPE_U32, 0, 21600, null) +
-        /*zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME,
-                                  TYPE_U32, 0, 21600, null) +
-        zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK,
-                                  TYPE_BOOL, 0, 21600, null) +*/
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_OPERATING_MODE,
                                   TYPE_ENUM8, 0, 21600, null) +
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME,
@@ -277,9 +274,6 @@ def refresh() {
     def cmds =
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE) +
         zigbee.readAttribute(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING) +
-        //zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SEND_PIN_OTA) +
-        //zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_MAX_PIN_LENGTH) + 
-        //zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_MIN_PIN_LENGTH) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_NUM_PIN_USERS) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK) +
@@ -314,7 +308,8 @@ def updated() {
         fireCommand(cmd)
     }
     if ( device.currentValue("autoLockTime") != myTime && device.currentValue("autoLockTime") > 0 ) {
-        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(myTime,8))
+        cmd = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME, TYPE_U32, zigbee.convertToHexString(myTime,8)) +
+              zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) // Saves battery reporting (Memory Restrictions)
         cmds += cmd
         fireCommand(cmd)
     }
@@ -591,11 +586,10 @@ def reloadAllCodes() {
             log.debug "Reloading Code for User ${codeNumber}"
             cmds = setCode(codeNumber, decrypt(entry.value))
             cmds += cmd
-            fireCommand(cmd) // Temporary Workaround
+            fireCommand(cmd)
         }
     }
     log.info "reloadAllCodes() - ${cmds}"
-    //return cmds
 }
 
 def deleteAllCodes() {
@@ -757,6 +751,7 @@ private Map parseReportAttributeMessage(String description) {
         } else {
             resultMap.value = "unsupported"
         }
+        sendEvent(operatingMap)
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_PRIVACY_BUTTON && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         def privacyMap = [name: "privacyButton", isStateChange: true, displayed: false, value: value ]
@@ -772,6 +767,7 @@ private Map parseReportAttributeMessage(String description) {
         } else {
             resultMap.value = "unsupported"
         }
+        sendEvent(privacyMap)
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_LED_STATUS && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         def LEDMap = [name: "LED", isStateChange: true, displayed: false, value: value ]
@@ -787,6 +783,7 @@ private Map parseReportAttributeMessage(String description) {
         } else {
             resultMap.value = "unsupported"
         }
+        sendEvent(LEDMap)
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
         resultMap = [name: "wrongCodeEntryLimit", descriptionText: "Current Value of Wrong Code Entry Limit: ${value}", isStateChange: true, value: value ]
@@ -811,14 +808,7 @@ private Map parseReportAttributeMessage(String description) {
             resultMap.value = "unsupported"
             resultMap.isStateChange = false
         }
-    }/* else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_SEND_PIN_OTA && descMap.value) {
-        def value = Integer.parseInt(descMap.value, 16)
-        if (value == 0) {
-            def cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SEND_PIN_OTA, TYPE_BOOL, 1)
-            log.debug "state.enablePINs cmds - ${cmds}"
-        }
-		state.disableLocalPINStore = value
-    }*/ else {
+    } else {
         log.debug "parseReportAttributeMessage() --- ignoring attribute - ${description}"
     }
     return resultMap
@@ -898,6 +888,8 @@ private Map parseResponseMessage(String description) {
         }
         def codeNumber = Integer.parseInt(descMap.data[2], 16)
         resultMap.isStateChange = true
+        resultMap.name="codeReport"
+        resultMap.displayed = true
         switch (Integer.parseInt(descMap.data[1], 16)) {
             case 1: 
                 resultMap.descriptionText = "Master code changed ${type}"
@@ -922,6 +914,8 @@ private Map parseResponseMessage(String description) {
                         //iterate through all the state entries to delete them
                         if ( entry.key ==~ /^code\d+$/ ) {
                             state[entry.key] = ""
+                            sendEvent([ name: "codeReport", displayed: false, isStateChange: true, descriptionText: "User ${codeNumber}'s PIN code deleted ${type}",
+                                        value: entry.key.substring(4), data: [ code: "" ] ])
                         }
                     }             
                 } else {
@@ -948,8 +942,6 @@ private Map parseResponseMessage(String description) {
                 return
 				break
         }
-        resultMap.name="codeReport"
-        resultMap.displayed = true
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_CMD_GET_LOG_RECORD && descMap.data[6]) {
         if (Integer.parseInt(descMap.data[6], 16) == 1 && device.getDataValue("manufacturer") == "Yale") { //Needed because tested Yale lock does not send Programming Event
             def codeNumber = Integer.parseInt(descMap.data[9], 16)
