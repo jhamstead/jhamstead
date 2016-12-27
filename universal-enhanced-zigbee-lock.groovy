@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-12-27 : Minor Changes.  Version 1.0 for submittal to SmartThings
  *  2016-12-24 : Bug Fixes - Version Release Candidate 0.7b
  *  2016-12-23 : Redesign for memory constraints - Version Release Candidate 0.7a
  *  2016-12-22 : Added Keypad Disable/Enable.  Added Privacy Button, LED Status but have memory constraints - Version Release Candidate 0.7
@@ -73,8 +74,8 @@
         command "disableAudio"
         command "enablePrivacyButton"
         command "disablePrivacyButton"
-        command "enableLED"
-        command "disableLED"
+        command "enableInternalLED"
+        command "disableInternalLED"
         command "resetTamperAlert"
         
         attribute "wrongCodeEntryLimit", "number"
@@ -177,17 +178,17 @@
             state "default", label: 'NOTE: If you change any of the options below manually outside of SmartThings, you must click refresh.  They will not update automatically.'
         }
         standardTile("privacyModeTile", "device.privacyModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "privacyDisabled", label:'Privacy Button Disabled', action:"enablePrivacyButton", icon:"st.illuminance.illuminance.dark", nextState:"privacy0Changing"
-            state "privacyEnabled", label:'Privacy Button Enabled', action:"disablePrivacyButton", icon:"st.illuminance.illuminance.light", nextState:"privacy1Changing"
-            state "privacy0Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.dark"
-            state "privacy1Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.light"
-            state "unsupportedPrivacyDisabled", label:'Privacy Button Disabled', icon:"st.illuminance.illuminance.dark"
-            state "unsupportedPrivacyEnabled", label:'Privacy Button Enabled', icon:"st.illuminance.illuminance.light"
-            state "unsupported", label:'Unsupported', icon:"st.illuminance.illuminance.dark"
+            state "privacyDisabled", label:'Privacy Button Disabled', action:"enablePrivacyButton", icon:"st.custom.buttons.subtract-icon", nextState:"privacy0Changing"
+            state "privacyEnabled", label:'Privacy Button Enabled', action:"disablePrivacyButton", icon:"st.custom.buttons.add-icon", nextState:"privacy1Changing"
+            state "privacy0Changing", label:'Updating . . .', icon:"st.custom.buttons.subtract-icon"
+            state "privacy1Changing", label:'Updating . . .', icon:"st.custom.buttons.add-icon"
+            state "unsupportedPrivacyDisabled", label:'Privacy Button Disabled', icon:"st.custom.buttons.subtract-icon"
+            state "unsupportedPrivacyEnabled", label:'Privacy Button Enabled', icon:"st.custom.buttons.add-icon"
+            state "unsupported", label:'Unsupported', icon:"st.custom.buttons.subtract-icon"
 		}
         standardTile("LEDTile", "device.LEDTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "LEDDisabled", label:'Internal LED Disabled', action:"enableLED", icon:"st.illuminance.illuminance.dark", nextState:"LED0Changing"
-            state "LEDEnabled", label:'Internal LED Enabled', action:"disableLED", icon:"st.illuminance.illuminance.light", nextState:"LED1Changing"
+            state "LEDDisabled", label:'Internal LED Disabled', action:"enableInternalLED", icon:"st.illuminance.illuminance.dark", nextState:"LED0Changing"
+            state "LEDEnabled", label:'Internal LED Enabled', action:"disableInternalLED", icon:"st.illuminance.illuminance.light", nextState:"LED1Changing"
             state "LED0Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.dark"
             state "LED1Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.light"
             state "unsupportedLEDDisabled", label:'Internal LED Disabled', icon:"st.illuminance.illuminance.dark"
@@ -413,27 +414,27 @@ def disableKeypad() {
     return cmds 
 }
 
-def enableLED() {
+def enableInternalLED() {
     def cmds = ""
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS, TYPE_BOOL, 1) +
                zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS) // Needed because of configuration memory issues
     } else {
-        log.warn "enableLED() --- command not supported for this lock"
+        log.warn "enableInternalLED() --- command not supported for this lock"
     }
-    log.debug "enableLED() --- cmds: $cmds"
+    log.debug "enableInternalLED() --- cmds: $cmds"
     return cmds 
 }
 
-def disableLED() {
+def disableInternalLED() {
     def cmds = ""
     if ( device.getDataValue("manufacturer") != "Kwikset" ) {
         cmds = zigbee.writeAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS, TYPE_BOOL, 0) +
                zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LED_STATUS) // Needed because of configuration memory issues
     } else {
-        log.warn "disableLED() --- command not supported for this lock"
+        log.warn "disableInternalLED() --- command not supported for this lock"
     }
-    log.debug "disableLED() --- cmds: $cmds"
+    log.debug "disableInternalLED() --- cmds: $cmds"
     return cmds 
 }
 
