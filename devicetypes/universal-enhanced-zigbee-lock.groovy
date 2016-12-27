@@ -13,10 +13,10 @@
  *  2016-10-26 : Major Design Changes: Optimization, Tamper Alarm, Additional Attributes - Version Alpha 0.3
  *  2016-10-17 : Add Auto Lock Time and One Touch Lock Capability - Version Alpha 0.2a
  *  2016-10-16 : Faster Responses by Removing Queue by Querying Lock Log (fix for Yale locks) - Version Alpha 0.2
- *  2016-10-03 : Bug Fixes - Version Alpha 0.1c - Initial Release
- *  2016-10-03 : Add Yale special Verification - Version Alpha 0.1b
- *  2016-10-01 : Bug Fixes - Version Alpha 0.1a
- *  2016-09-28 : Enhanced Capabilities Created - Version Alpha 0.1
+ *	2016-10-03 : Bug Fixes - Version Alpha 0.1c - Initial Release
+ *	2016-10-03 : Add Yale special Verification - Version Alpha 0.1b
+ *	2016-10-01 : Bug Fixes - Version Alpha 0.1a
+ *	2016-09-28 : Enhanced Capabilities Created - Version Alpha 0.1
  *
  *	This is a modification of work originally copyrighted by "SmartThings."	 All modifications to their work
  *	is released under the following terms:
@@ -102,32 +102,32 @@
     }
 
     tiles(scale: 2) {
-	multiAttributeTile(name:"toggle", type:"generic", width:6, height:4){
-	    tileAttribute ("device.lock", key:"PRIMARY_CONTROL") {
-	       attributeState "locked", label:'locked', action:"lock.unlock", icon:"st.locks.lock.locked", backgroundColor:"#79b821", nextState:"unlocking"
-	        attributeState "unlocked", label:'unlocked', action:"lock.lock", icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff", nextState:"locking"
+		multiAttributeTile(name:"toggle", type:"generic", width:6, height:4){
+			tileAttribute ("device.lock", key:"PRIMARY_CONTROL") {
+				attributeState "locked", label:'locked', action:"lock.unlock", icon:"st.locks.lock.locked", backgroundColor:"#79b821", nextState:"unlocking"
+				attributeState "unlocked", label:'unlocked', action:"lock.lock", icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff", nextState:"locking"
                 attributeState "unknown", label:"unknown", action:"lock.lock", icon:"st.locks.lock.unknown", backgroundColor:"#ffffff", nextState:"locking"
                 attributeState "jammed", label:"jammed", action:"lock.unlock", icon:"st.locks.lock.unknown", backgroundColor:"#ee7070", nextState:"unlocking"
-    		attributeState "locking", label:'locking', icon:"st.locks.lock.locked", backgroundColor:"#79b821"
-		attributeState "unlocking", label:'unlocking', icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff"
-	    }
+				attributeState "locking", label:'locking', icon:"st.locks.lock.locked", backgroundColor:"#79b821"
+				attributeState "unlocking", label:'unlocking', icon:"st.locks.lock.unlocked", backgroundColor:"#ffffff"
+			}
             tileAttribute ("device.tamper", key:"SECONDARY_CONTROL") {
                 attributeState "clear", label:""
                 attributeState "detected", label:"Alert!", icon:"st.alarm.alarm.alarm"         
             }
-	}
-	standardTile("lock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-	    state "default", label:'lock', action:"lock.lock", icon:"st.locks.lock.locked", nextState:"locking"
-	}
-	standardTile("unlock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-	    state "default", label:'unlock', action:"lock.unlock", icon:"st.locks.lock.unlocked", nextState:"unlocking"
-	}
-	valueTile("battery", "device.battery", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-	    state "battery", label:'${currentValue}% battery', unit:""
-	}
-	standardTile("refresh", "device.refresh", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-	    state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
-	}
+		}
+		standardTile("lock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "default", label:'lock', action:"lock.lock", icon:"st.locks.lock.locked", nextState:"locking"
+		}
+		standardTile("unlock", "device.lock", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "default", label:'unlock', action:"lock.unlock", icon:"st.locks.lock.unlocked", nextState:"unlocking"
+		}
+		valueTile("battery", "device.battery", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "battery", label:'${currentValue}% battery', unit:""
+		}
+		standardTile("refresh", "device.refresh", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
+		}
         standardTile("autoLockTile", "device.autoLockTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "autoLockDisabled", label:'Timed Auto Lock Disabled', action:"enableAutolock", icon: "st.samsung.da.washer_ic_cancel", nextState: "autoLockDChanging"
             state "autoLockEnabled", label:"Timed Auto Lock Enabled", action:"disableAutolock", icon:"st.Health & Wellness.health7", nextState:"autoLockEChanging"
@@ -136,7 +136,7 @@
             state "unsupportedAutoLockDisabled", label:"Timed Auto Lock Disabled", icon:"st.samsung.da.washer_ic_cancel"
             state "unsupportedAutoLockEnabled", label:"Timed Auto Lock Enabled", icon:"st.Health & Wellness.health7"
             state "unsupported", label:"Unsupported", icon:"st.samsung.da.washer_ic_cancel"
-	}
+		}
         standardTile("oneTouchTile", "device.oneTouchTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "oneTouchDisabled", label:'One Touch Lock Disabled', action:"enableOneTouch", icon:"st.security.alarm.on", nextState:"oneTouch0Changing"
             state "oneTouchEnabled", label:'One Touch Lock Enabled', action:"disableOneTouch", icon:"st.security.alarm.off", nextState:"oneTouch1Changing"
@@ -145,7 +145,7 @@
             state "unsupportedOneTouchDisabled", label:'One Touch Lock Disabled', icon:"st.security.alarm.on"
             state "unsupportedOneTouchEnabled", label:'One Touch Lock Enabled', icon:"st.security.alarm.off"
             state "unsupported", label:'Unsupported', icon:"st.security.alarm.on"
-	}
+		}
         standardTile("operatingModeTile", "device.operatingModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "unsupportedOperatingEnabled", label:"`                    Keypad Enabled", icon:"st.unknown.zwave.remote-controller"
             state "unsupportedOperatingDisabled", label:"`                    Keypad Disabled", icon:"st.unknown.zwave.remote-controller"
@@ -154,7 +154,7 @@
             state "operatingEnabled", label:"`                    Keypad Enabled", action:"disableKeypad", icon:"st.unknown.zwave.remote-controller", nextState:"operating1Changing"
             state "operating0Changing", label:"`                    Updating . . .", icon:"st.unknown.zwave.remote-controller"
             state "operating1Changing", label:"`                    Updating . . .", icon:"st.unknown.zwave.remote-controller"
-	}
+		}
         standardTile("volume", "device.volume", inactiveLabel:false, width:2, height:2) {
             state "Silent", label:"Silent", action:"enableAudioLow", icon:"st.custom.sonos.muted", nextState:"volumeSilentChanging", backgroundColor:"#ffffff"
             state "Low", label:"Low", action:"enableAudioHigh", icon:"st.custom.sonos.unmuted", nextState:"volumeLowChanging", backgroundColor:"#7070ee"
@@ -166,14 +166,14 @@
             state "unsupportedLow", label:"Low", icon:"st.custom.sonos.unmuted", backgroundColor:"#7070ee"
             state "unsupportedHigh", label:"High", icon:"st.custom.sonos.unmuted", backgroundColor:"#ee7070"
             state "unsupported", label:"Unsupported", icon:"st.custom.sonos.muted", backgroundColor:"#ffffff"
-	}
-	standardTile("tamper", "device.tamper", inactiveLabel:false, width:2, height:2) {
+		}
+		standardTile("tamper", "device.tamper", inactiveLabel:false, width:2, height:2) {
             state "clear", label:'No Alerts', icon:"st.nest.nest-leaf", backgroundColor:"#00dd00"
 			state "detected", label:'Reset', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm", backgroundColor:"#ff0000"
-	}
-	standardTile("reconfigure", "device.reconfigure", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+		}
+		standardTile("reconfigure", "device.reconfigure", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "reconfigure", label:'Force Reconfigure', action:"configure", icon:"st.secondary.tools"
-	}
+		}
         valueTile("labelManual", "device.labelManual", inactiveLabel:true, decoration:"flat", width:6, height:2) {
             state "default", label: 'NOTE: If you change any of the options below manually outside of SmartThings, you must click refresh.  They will not update automatically.'
         }
@@ -185,7 +185,7 @@
             state "unsupportedPrivacyDisabled", label:'Privacy Button Disabled', icon:"st.custom.buttons.subtract-icon"
             state "unsupportedPrivacyEnabled", label:'Privacy Button Enabled', icon:"st.custom.buttons.add-icon"
             state "unsupported", label:'Unsupported', icon:"st.custom.buttons.subtract-icon"
-	}
+		}
         standardTile("LEDTile", "device.LEDTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "LEDDisabled", label:'Internal LED Disabled', action:"enableInternalLED", icon:"st.illuminance.illuminance.dark", nextState:"LED0Changing"
             state "LEDEnabled", label:'Internal LED Enabled', action:"disableInternalLED", icon:"st.illuminance.illuminance.light", nextState:"LED1Changing"
@@ -194,17 +194,17 @@
             state "unsupportedLEDDisabled", label:'Internal LED Disabled', icon:"st.illuminance.illuminance.dark"
             state "unsupportedLEDEnabled", label:'Internal LED Enabled', icon:"st.illuminance.illuminance.light"
             state "unsupported", label:'Unsupported', icon:"st.illuminance.illuminance.dark"
-	}
-	main "toggle"
-	    details(["toggle", "lock", "unlock", "battery", "tamper", "operatingModeTile", "volume", "labelManual", "autoLockTile", "oneTouchTile", "privacyModeTile", "LEDTile", "refresh", "reconfigure"])
+		}
+		main "toggle"
+		details(["toggle", "lock", "unlock", "battery", "tamper", "operatingModeTile", "volume", "labelManual", "autoLockTile", "oneTouchTile", "privacyModeTile", "LEDTile", "refresh", "reconfigure"])
 	}
     
 	preferences {
-            section ("Lock Properties"){
-                input "autoLock", "number", title: "Auto Lock Timeout (5-180 Seconds)", description: true, defaultValue: 30, required: false, range: "5..180"
-                input "wrongLimit", "number", title: "Wrong Code Entry Limit (1-10 Invalid Entries)", description: true, defaultValue: 5, required: false, range: "1..10"
-                input "lockoutTime", "number", title: "Wrong Code Entry Lockout (5-180 Seconds)", description: true, defaultValue: 60, required: false, range: "5..180"
-            }
+        section ("Lock Properties"){
+            input "autoLock", "number", title: "Auto Lock Timeout (5-180 Seconds)", description: true, defaultValue: 30, required: false, range: "5..180"
+            input "wrongLimit", "number", title: "Wrong Code Entry Limit (1-10 Invalid Entries)", description: true, defaultValue: 5, required: false, range: "1..10"
+            input "lockoutTime", "number", title: "Wrong Code Entry Lockout (5-180 Seconds)", description: true, defaultValue: 60, required: false, range: "5..180"
+        }
 	}
 }
 // Globals
