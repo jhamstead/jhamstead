@@ -1,22 +1,8 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2016-12-28 : Attribute Updates (true/false). Code Optimization.  Version 1.1
  *  2016-12-27 : Minor Changes.  Version 1.0 for submittal to SmartThings
- *  2016-12-24 : Bug Fixes - Version Release Candidate 0.7b
- *  2016-12-23 : Redesign for memory constraints - Version Release Candidate 0.7a
- *  2016-12-22 : Added Keypad Disable/Enable.  Added Privacy Button, LED Status but have memory constraints - Version Release Candidate 0.7
- *  2016-12-20 : Bug Fixes, Delete All Codes Confirmation - Version Release Candidate 0.6a
- *  2016-12-20 : Cleaner Interface for Kwikset Locks. Added Privacy Mode.  Code Optimizations - Version Release Candidate 0.6
- *  2016-11-17 : Bug Fixes, Code Optimization - Version Beta 0.5a
- *  2016-11-03 : Realign Custom Commands to other Z-Wave enhanced locks.  Disabled Additional Features not supported by Kwikset locks - Version Beta 0.5
- *  2016-10-27 : Design/Visual Changes: Bug Fixes, Volume Control, Force Reconfigure - Version Alpha 0.4 (Last Planned Alpha Version)
- *  2016-10-26 : Major Design Changes: Optimization, Tamper Alarm, Additional Attributes - Version Alpha 0.3
- *  2016-10-17 : Add Auto Lock Time and One Touch Lock Capability - Version Alpha 0.2a
- *  2016-10-16 : Faster Responses by Removing Queue by Querying Lock Log (fix for Yale locks) - Version Alpha 0.2
- *	2016-10-03 : Bug Fixes - Version Alpha 0.1c - Initial Release
- *	2016-10-03 : Add Yale special Verification - Version Alpha 0.1b
- *	2016-10-01 : Bug Fixes - Version Alpha 0.1a
- *	2016-09-28 : Enhanced Capabilities Created - Version Alpha 0.1
  *
  *	This is a modification of work originally copyrighted by "SmartThings."	 All modifications to their work
  *	is released under the following terms:
@@ -81,13 +67,13 @@
         attribute "wrongCodeEntryLimit", "number"
         attribute "userCodeDisableTime", "number"
         attribute "autoLockTime", "number"
-        attribute "oneTouch", "number"
-        attribute "operatingMode", "number"
-        attribute "privacyButton", "number"
-        attribute "LED", "number"
-        attribute "volume", "string"
-        attribute "numPINUsers", "number"
+        attribute "oneTouch", "enum", [true,false]
+        attribute "keypad", "enum", [true,false]
+        attribute "privacyButton", "enum", [true,false]
+        attribute "LED", "enum", [true,false]
+        attribute "volume", "enum", ["Silent","Low","High"]
         attribute "invalidCode", "enum", [true,false]
+        attribute "numPINUsers", "number"
         //attribute "maxPINLength", "number"
         //attribute "minPINLength", "number"
 
@@ -128,34 +114,8 @@
 		standardTile("refresh", "device.refresh", inactiveLabel:false, decoration:"flat", width:2, height:2) {
 			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
-        standardTile("autoLockTile", "device.autoLockTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "autoLockDisabled", label:'Timed Auto Lock Disabled', action:"enableAutolock", icon: "st.samsung.da.washer_ic_cancel", nextState: "autoLockDChanging"
-            state "autoLockEnabled", label:"Timed Auto Lock Enabled", action:"disableAutolock", icon:"st.Health & Wellness.health7", nextState:"autoLockEChanging"
-            state "autoLockDChanging", label:'Updating . . .', icon: "st.samsung.da.washer_ic_cancel"
-            state "autoLockEChanging", label:'Updating . . .', icon: "st.Health & Wellness.health7"
-            state "unsupportedAutoLockDisabled", label:"Timed Auto Lock Disabled", icon:"st.samsung.da.washer_ic_cancel"
-            state "unsupportedAutoLockEnabled", label:"Timed Auto Lock Enabled", icon:"st.Health & Wellness.health7"
-            state "unsupported", label:"Unsupported", icon:"st.samsung.da.washer_ic_cancel"
-		}
-        standardTile("oneTouchTile", "device.oneTouchTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "oneTouchDisabled", label:'One Touch Lock Disabled', action:"enableOneTouch", icon:"st.security.alarm.on", nextState:"oneTouch0Changing"
-            state "oneTouchEnabled", label:'One Touch Lock Enabled', action:"disableOneTouch", icon:"st.security.alarm.off", nextState:"oneTouch1Changing"
-            state "oneTouch0Changing", label:'Updating . . .', icon:"st.security.alarm.on"
-            state "oneTouch1Changing", label:'Updating . . .', icon:"st.security.alarm.off"
-            state "unsupportedOneTouchDisabled", label:'One Touch Lock Disabled', icon:"st.security.alarm.on"
-            state "unsupportedOneTouchEnabled", label:'One Touch Lock Enabled', icon:"st.security.alarm.off"
-            state "unsupported", label:'Unsupported', icon:"st.security.alarm.on"
-		}
-        standardTile("operatingModeTile", "device.operatingModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "unsupportedOperatingEnabled", label:"`                    Keypad Enabled", icon:"st.unknown.zwave.remote-controller"
-            state "unsupportedOperatingDisabled", label:"`                    Keypad Disabled", icon:"st.unknown.zwave.remote-controller"
-            state "unsupported", label:"Unsupported", icon:"st.unknown.zwave.remote-controller"
-            state "operatingDisabled", label:"`                    Keypad Disabled", action:"enableKeypad", icon:"st.unknown.zwave.remote-controller", nextState:"operating0Changing"
-            state "operatingEnabled", label:"`                    Keypad Enabled", action:"disableKeypad", icon:"st.unknown.zwave.remote-controller", nextState:"operating1Changing"
-            state "operating0Changing", label:"`                    Updating . . .", icon:"st.unknown.zwave.remote-controller"
-            state "operating1Changing", label:"`                    Updating . . .", icon:"st.unknown.zwave.remote-controller"
-		}
-        standardTile("volume", "device.volume", inactiveLabel:false, width:2, height:2) {
+        standardTile("volumeTile", "device.volumeTile", inactiveLabel:false, width:2, height:2) {
+            state "unsupported", label:"Unsupported", icon:"st.custom.sonos.muted", backgroundColor:"#ffffff"
             state "Silent", label:"Silent", action:"enableAudioLow", icon:"st.custom.sonos.muted", nextState:"volumeSilentChanging", backgroundColor:"#ffffff"
             state "Low", label:"Low", action:"enableAudioHigh", icon:"st.custom.sonos.unmuted", nextState:"volumeLowChanging", backgroundColor:"#7070ee"
             state "High", label:"High", action:"disableAudio", icon:"st.custom.sonos.unmuted", nextState:"volumeHighChanging", backgroundColor:"#ee7070"
@@ -165,8 +125,12 @@
             state "unsupportedSilent", label:"Silent", icon:"st.custom.sonos.muted", backgroundColor:"#ffffff"
             state "unsupportedLow", label:"Low", icon:"st.custom.sonos.unmuted", backgroundColor:"#7070ee"
             state "unsupportedHigh", label:"High", icon:"st.custom.sonos.unmuted", backgroundColor:"#ee7070"
-            state "unsupported", label:"Unsupported", icon:"st.custom.sonos.muted", backgroundColor:"#ffffff"
 		}
+        tileToggle("autoLockTime", "Timed Auto Lock Enabled", "Timed Auto Lock Disabled", "st.Health & Wellness.health7", "st.samsung.da.washer_ic_cancel", "enableAutolock", "disableAutolock")
+        tileToggle("oneTouch", "One Touch Lock Enabled", "One Touch Lock Disabled", "st.security.alarm.off", "st.security.alarm.on", "enableOneTouch", "disableOneTouch")
+        tileToggle("keypad", "Keypad Enabled", "Keypad Disabled", "st.unknown.zwave.remote-controller", "st.unknown.zwave.remote-controller", "enableKeypad", "disableKeypad", "`                    ")
+        tileToggle("privacyButton", "Privacy Button Enabled", "Privacy Button Disabled", "st.custom.buttons.add-icon", "st.custom.buttons.subtract-icon", "enablePrivacyButton", "disablePrivacyButton")
+        tileToggle("LED", "Internal LED Enabled", "Internal LED Disabled", "st.illuminance.illuminance.light", "st.illuminance.illuminance.dark", "enableInternalLED", "disableInternalLED")
 		standardTile("tamper", "device.tamper", inactiveLabel:false, width:2, height:2) {
             state "clear", label:'No Alerts', icon:"st.nest.nest-leaf", backgroundColor:"#00dd00"
 			state "detected", label:'Reset', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm", backgroundColor:"#ff0000"
@@ -177,26 +141,9 @@
         valueTile("labelManual", "device.labelManual", inactiveLabel:true, decoration:"flat", width:6, height:2) {
             state "default", label: 'NOTE: If you change any of the options below manually outside of SmartThings, you must click refresh.  They will not update automatically.'
         }
-        standardTile("privacyModeTile", "device.privacyModeTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "privacyDisabled", label:'Privacy Button Disabled', action:"enablePrivacyButton", icon:"st.custom.buttons.subtract-icon", nextState:"privacy0Changing"
-            state "privacyEnabled", label:'Privacy Button Enabled', action:"disablePrivacyButton", icon:"st.custom.buttons.add-icon", nextState:"privacy1Changing"
-            state "privacy0Changing", label:'Updating . . .', icon:"st.custom.buttons.subtract-icon"
-            state "privacy1Changing", label:'Updating . . .', icon:"st.custom.buttons.add-icon"
-            state "unsupportedPrivacyDisabled", label:'Privacy Button Disabled', icon:"st.custom.buttons.subtract-icon"
-            state "unsupportedPrivacyEnabled", label:'Privacy Button Enabled', icon:"st.custom.buttons.add-icon"
-            state "unsupported", label:'Unsupported', icon:"st.custom.buttons.subtract-icon"
-		}
-        standardTile("LEDTile", "device.LEDTile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "LEDDisabled", label:'Internal LED Disabled', action:"enableInternalLED", icon:"st.illuminance.illuminance.dark", nextState:"LED0Changing"
-            state "LEDEnabled", label:'Internal LED Enabled', action:"disableInternalLED", icon:"st.illuminance.illuminance.light", nextState:"LED1Changing"
-            state "LED0Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.dark"
-            state "LED1Changing", label:'Updating . . .', icon:"st.illuminance.illuminance.light"
-            state "unsupportedLEDDisabled", label:'Internal LED Disabled', icon:"st.illuminance.illuminance.dark"
-            state "unsupportedLEDEnabled", label:'Internal LED Enabled', icon:"st.illuminance.illuminance.light"
-            state "unsupported", label:'Unsupported', icon:"st.illuminance.illuminance.dark"
-		}
+        
 		main "toggle"
-		details(["toggle", "lock", "unlock", "battery", "tamper", "operatingModeTile", "volume", "labelManual", "autoLockTile", "oneTouchTile", "privacyModeTile", "LEDTile", "refresh", "reconfigure"])
+		details(["toggle", "lock", "unlock", "battery", "tamper", "keypadTile", "volumeTile", "labelManual", "autoLockTimeTile", "oneTouchTile", "privacyModeTile", "LEDTile", "refresh", "reconfigure"])
 	}
     
 	preferences {
@@ -268,7 +215,7 @@ def configure() {
                                   TYPE_U8, 0, 21600, null)
         
     log.info "configure() --- cmds: $cmds"
-    return cmds + refresh() // send refresh cmds as part of config
+    return refresh() + cmds // send refresh cmds as part of config
 }
 
 def refresh() {
@@ -544,26 +491,14 @@ def setCode(codeNumber, code) {
 }
 
 def requestCode(codeNumber) {
-    def cmds = ""
-    if (state.disableLocalPINStore){
-        if (codeNumber.toInteger() >= 0 && codeNumber.toInteger() <= getNumPINUsers() ){
-	        log.debug "Getting code $codeNumber"
-            cmds = zigbee.command(CLUSTER_DOORLOCK, DOORLOCK_CMD_USER_CODE_GET, "${zigbee.convertToHexString(codeNumber.toInteger(),2)}00")
-        }else{
-            log.debug "Invalid Input: Unable to get code for $codeNumber"
-        }
-    }else{
-       if (state["code${codeNumber}"]) {
-           def resultMap = [ name: "codeReport", descriptionText: "Code recovered for user ${codeNumber}", isStateChange: true,
-                             displayed: true, value: codeNumber, date: [ code: decrypt(state["code${codeNumber}"]) ] ]
-           log.debug "requestCode: Code recovered for user $codeNumber: ${decrypt(state["code${codeNumber}"])}"
-           sendEvent(resultMap)
-       } else {
-           log.debug "requestCode: Code not available user $codeNumber"
-       }
+    if (state["code${codeNumber}"]) {
+        def resultMap = [ name: "codeReport", descriptionText: "Code recovered for user ${codeNumber}", isStateChange: true,
+                          displayed: true, value: codeNumber, date: [ code: decrypt(state["code${codeNumber}"]) ] ]
+        log.debug "requestCode: Code recovered for user $codeNumber: ${decrypt(state["code${codeNumber}"])}"
+        sendEvent(resultMap)
+    } else {
+        log.debug "requestCode: Code not available user $codeNumber"
     }
-    log.info "requestCode() - ${cmds}"
-    return cmds
 }
 
 def deleteCode(codeNumber) {
@@ -669,6 +604,48 @@ private getNumPINUsers() {
     return num_users
 }
 
+private tileToggle(varName, labelEnabled, labelDisabled, iconEnabled, iconDisabled, enableMethod, disableMethod, specialAlign="") {
+        standardTile("${varName}Tile", "device.${varName}Tile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+            state "unsupported", label:"${specialAlign}Unsupported", icon:"${iconDisabled}"
+            state "${varName}Disabled", label:"${specialAlign}${labelDisabled}", action:"${enableMethod}", icon:"${iconDisabled}", nextState:"${varName}DChanging"
+            state "${varName}Enabled", label:"${specialAlign}${labelEnabled}", action:"${disableMethod}", icon:"${iconEnabled}", nextState:"${varName}EChanging"
+            state "${varName}DChanging", label:"${specialAlign}Updating . . .", icon:"${iconDisabled}"
+            state "${varName}EChanging", label:"${specialAlign}Updating . . .", icon:"${iconEnabled}"
+            state "unsupported${varName.capitalize()}Disabled", label:"${specialAlign}${labelDisabled}", icon:"${iconDisabled}"
+            state "unsupported${varName.capitalize()}Enabled", label:"${specialAlign}${labelEnabled}", icon:"${iconEnabled}"
+		}
+}
+
+// This method sets the varName attribute value and the correct state for toggled tiles
+// isTrueFalse=true to set varName attribute values to true/false
+// isReversed=true when value of 0 (zero) means Enabled
+private Map parseTileToggle(varName, intValue, isTrueFalse=true, isReversed=false) {
+    def value = intValue
+    def lockCurrentValue = device.currentValue(varName)
+    if (isTrueFalse) {
+        if (isReversed) {
+            value = (intValue == 0) ? true : false
+        } else {
+            value = (intValue == 0) ? false : true
+        }
+        lockCurrentValue = (lockCurrentValue == "true") ? true : false
+    }
+    def varMap = [name: varName, displayed: false, isStateChange: true, value: value ]
+    def resultMap = [name: "${varName}Tile", isStateChange: true, displayed: true, descriptionText: "Current Value of ${varName}=${value}"  ]
+    if ( lockCurrentValue == value ) {
+        resultMap.displayed = false
+        varMap.isStateChange = false
+    }
+    if ( (intValue > 0 && ! isReversed) || (isReversed && intValue == 0) ) {
+        resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupported" + varName.capitalize() + "Enabled" : "${varName}Enabled"
+    } else {
+        resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupported" + varName.capitalize() + "Disabled" : "${varName}Disabled"
+    }
+    sendEvent(varMap)
+    log.debug "parseToggle() - ${resultMap}"
+    return resultMap
+}
+
 private Map parseReportAttributeMessage(String description) {
     Map descMap = zigbee.parseDescriptionAsMap(description)
     Map resultMap = [:]
@@ -705,110 +682,41 @@ private Map parseReportAttributeMessage(String description) {
         def value = Integer.parseInt(descMap.value, 16)
         resultMap = [ name: "numPINUsers", descriptionText: "Maximum Number of PIN Users: ${value}", value: value ]
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_AUTO_RELOCK_TIME && descMap.value) {
-        def value = Integer.parseInt(descMap.value, 16)
-        def autoLockMap = [ name: "autoLockTime", displayed: false, isStateChange: true, value: value ]
-        resultMap = [ name: "autoLockTile", displayed: true, isStateChange: true, descriptionText: "Current Value of Auto Lock: ${value}" ]
-        if (device.currentValue("autoLockTime") == value){
-            autoLockMap.isStateChange = false
-            resultMap.displayed = false
-        }
-        if ( value > 0 ){
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedAutoLockEnabled" : "autoLockEnabled"
-        } else if ( value == 0 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedAutoLockDisabled" : "autoLockDisabled"
-        } else {
-            resultMap.value = "unsupported"
-        }
-        log.debug "autoLockTime --- ${autoLockMap}"
-        sendEvent(autoLockMap)
+        resultMap = parseTileToggle("autoLockTime", Integer.parseInt(descMap.value, 16), false) // is not True/False
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_ONE_TOUCH_LOCK && descMap.value) {
-        def value = Integer.parseInt(descMap.value, 16)
-        def oneTouchMap = [name: "oneTouch", displayed: false, isStateChange: true, value: value ]
-        resultMap = [name: "oneTouchTile", isStateChange: true, displayed: true, descriptionText: "Current Value of One Touch Lock: ${value}"  ]
-        if ( device.currentValue("oneTouch") == value ) {
-            resultMap.displayed = false
-            oneTouchMap.isStateChange = false
-        }
-        if ( value == 0 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOneTouchDisabled" : "oneTouchDisabled"
-        } else if ( value == 1 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOneTouchEnabled" : "oneTouchEnabled"
-        } else {
-            resultMap.value = "unsupported"
-        }
-        sendEvent(oneTouchMap)
+        resultMap = parseTileToggle("oneTouch", Integer.parseInt(descMap.value, 16))
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_OPERATING_MODE && descMap.value) {
-        def value = Integer.parseInt(descMap.value, 16)
-        def operatingMap = [name: "operatingMode", isStateChange: true, displayed: false, value: value ]
-        resultMap = [name: "operatingModeTile", isStateChange: true, displayed: true, descriptionText: "Current Value of Operating Mode: ${value}" ]
-        if ( device.currentValue("operatingMode") == value ) {
-            resultMap.displayed = false
-            operatingMap.isStateChange = false
-        } 
-        if ( value == 2 || value == 1 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOperatingDisabled" : "operatingDisabled"
-        } else if ( value == 0 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedOperatingEnabled" : "operatingEnabled"
-        } else {
-            resultMap.value = "unsupported"
-        }
-        sendEvent(operatingMap)
+        resultMap = parseTileToggle("keypad", Integer.parseInt(descMap.value, 16), true, true) // isReversed (0 = enabled)
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_PRIVACY_BUTTON && descMap.value) {
-        def value = Integer.parseInt(descMap.value, 16)
-        def privacyMap = [name: "privacyButton", isStateChange: true, displayed: false, value: value ]
-        resultMap = [name: "privacyModeTile", isStateChange: true, displayed: true, descriptionText: "Current Value of Privacy Button: ${value}" ]
-        if ( device.currentValue("privacyButton") == value ) {
-            resultMap.displayed = false
-            privacyMap.isStateChange = false
-        } 
-        if ( value == 0 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedPrivacyDisabled" : "privacyDisabled"
-        } else if ( value == 1 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedPrivacyEnabled" : "privacyEnabled"
-        } else {
-            resultMap.value = "unsupported"
-        }
-        sendEvent(privacyMap)
+        resultMap = parseTileToggle("privacyButton", Integer.parseInt(descMap.value, 16))
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_LED_STATUS && descMap.value) {
-        def value = Integer.parseInt(descMap.value, 16)
-        def LEDMap = [name: "LED", isStateChange: true, displayed: false, value: value ]
-        resultMap = [name: "LEDTile", isStateChange: true, displayed: true, descriptionText: "Current Value of LED: ${value}" ]
-        if ( device.currentValue("LED") == value ) {
-            resultMap.displayed = false
-            LEDMap.isStateChange = false
-        } 
-        if ( value == 0 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedLEDDisabled" : "LEDDisabled"
-        } else if ( value == 1 ) {
-            resultMap.value = (device.getDataValue("manufacturer") == "Kwikset") ? "unsupportedLEDEnabled" : "LEDEnabled"
-        } else {
-            resultMap.value = "unsupported"
-        }
-        sendEvent(LEDMap)
+        resultMap = parseTileToggle("LED", Integer.parseInt(descMap.value, 16))
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
-        resultMap = [name: "wrongCodeEntryLimit", descriptionText: "Current Value of Wrong Code Entry Limit: ${value}", isStateChange: true, value: value ]
+        resultMap = [name: "wrongCodeEntryLimit", descriptionText: "Current Value of wrongCodeEntryLimit=${value}", isStateChange: true, value: value ]
         if ( device.currentValue("wrongCodeEntryLimit") == value ) resultMap.isStateChange = false
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_USER_CODE_DISABLE_TIME && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
-        resultMap = [name: "userCodeDisableTime", descriptionText: "Current Value of User Code Disable Time: ${value}", isStateChange: true, value: value ]
+        resultMap = [name: "userCodeDisableTime", descriptionText: "Current Value of userCodeDisableTime=${value}", isStateChange: true, value: value ]
         if ( device.currentValue("userCodeDisableTime") == value ){ resultMap += [ isStateChange: false, displayed: false ] }
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_SOUND_VOLUME && descMap.value) {
-        def value = Integer.parseInt(descMap.value, 16)
-        resultMap = [name: "volume", isStateChange: true]
-        if ( value == 0 ) {
-            if ( device.currentValue("volume") == "Silent" ) resultMap.isStateChange = false
-            resultMap += (device.getDataValue("manufacturer") == "Kwikset") ? [ descriptionText: "Volume: Silent", value: "unsuportedSilent" ] : [ descriptionText: "Volume: Silent", value: "Silent" ]
-        } else if ( value == 1 ) {
-            if ( device.currentValue("volume") == "Low" ) resultMap.isStateChange = false
-            resultMap += (device.getDataValue("manufacturer") == "Kwikset") ? [ descriptionText: "Volume: Low", value: "unsuportedLow" ] : [ descriptionText: "Volume: Low", value: "Low" ]
-        } else if ( value == 2 ){
-            if ( device.currentValue("volume") == "High" ) resultMap.isStateChange = false
-            resultMap += (device.getDataValue("manufacturer") == "Kwikset") ? [ descriptionText: "Volume: High", value: "unsuportedHigh" ] : [ descriptionText: "Volume: High", value: "High" ]
+        def intValue = Integer.parseInt(descMap.value, 16)
+        def value
+        if ( intValue == 1 ) {
+            value = "Low"
+        } else if ( intValue == 2 ){
+            value = "High"
         } else {
-            resultMap.value = "unsupported"
-            resultMap.isStateChange = false
+            value = "Silent"
         }
+        def varMap = [name: "volume", displayed: false, isStateChange: true, value: value ]
+        resultMap = [name: "volumeTile", displayed: true, isStateChange: true, descriptionText: "Current Value of volume=${value}"]
+        resultMap += (device.getDataValue("manufacturer") == "Kwikset") ? [ value: "unsuported${value}" ] : [ value: value ]
+        if ( device.currentValue("volume") == value ) {
+            resultMap.displayed = false
+            varMap.isStateChange = false
+        }
+        sendEvent(varMap)
     } else {
         log.debug "parseReportAttributeMessage() --- ignoring attribute - ${description}"
     }
