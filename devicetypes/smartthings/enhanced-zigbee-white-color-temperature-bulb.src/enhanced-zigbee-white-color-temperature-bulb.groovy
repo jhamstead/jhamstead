@@ -106,7 +106,7 @@ def parse(String description) {
             }
         }
         else if (cluster.clusterInt == 0x0008 && cluster.attrInt == 0x0010 && cluster.value) {
-            def value = Integer.parseInt(descMap.value, 16)
+            def value = (Integer.parseInt(descMap.value, 16) / 10)
             return [ name: "onOffTransitionTime", descriptionText: "On/Off Transition Time: ${value}", value: value, displayed: true, isStateChange: true ]
         }
         else {
@@ -137,7 +137,7 @@ def ping() {
 
 def updated() {
     def onOffTransitionTime = (settings.transitionTime) ? settings.transitionTime : 0
-    return zigbee.writeAttribute(0x0008, 0x0010, 0x21, zigbee.convertToHexString(onOffTransitionTime,4)) + zigbee.readAttribute(0x0008, 0x0010)
+    return zigbee.writeAttribute(0x0008, 0x0010, 0x21, zigbee.convertToHexString((onOffTransitionTime * 10),4)) + zigbee.readAttribute(0x0008, 0x0010)
 }
 
 def refresh() {
