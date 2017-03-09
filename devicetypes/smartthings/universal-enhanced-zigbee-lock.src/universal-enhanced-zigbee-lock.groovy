@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-03-08 : Update to fix UI changes released in 2.3 Mobile App. Version 1.2d
  *  2017-03-07 : Update to match new color scheme. Version 1.2c
  *  2017-02-05 : Minor Code Changes. Version 1.2b
  *  2017-01-21 : Modified ping() command to more align with other SmartThings ZigBee DTHs. Version 1.2a
@@ -134,11 +135,11 @@
             state "unsupportedLow", label:"Low", icon:"st.custom.sonos.unmuted", backgroundColor:"#7070ee"
             state "unsupportedHigh", label:"High", icon:"st.custom.sonos.unmuted", backgroundColor:"#ee7070"
 		}
-        tileToggle("autoLockTime", "Timed Auto Lock", "st.Health & Wellness.health7", "st.samsung.da.washer_ic_cancel", "enableAutolock", "disableAutolock")
-        tileToggle("oneTouch", "One Touch Lock", "st.security.alarm.off", "st.security.alarm.on", "enableOneTouch", "disableOneTouch")
-        tileToggle("keypad", "Keypad", "st.unknown.zwave.remote-controller", "st.unknown.zwave.remote-controller", "enableKeypad", "disableKeypad", "`                    ")
-        tileToggle("privacyButton", "Privacy Button", "st.custom.buttons.add-icon", "st.custom.buttons.subtract-icon", "enablePrivacyButton", "disablePrivacyButton")
-        tileToggle("LED", "Internal LED", "st.illuminance.illuminance.light", "st.illuminance.illuminance.dark", "enableInternalLED", "disableInternalLED")
+        tileToggle("autoLockTime", "Timed Auto Lock", "st.Health & Wellness.health7", "st.samsung.da.washer_ic_cancel", "Autolock")
+        tileToggle("oneTouch", "One Touch Lock", "st.security.alarm.off", "st.security.alarm.on", "OneTouch")
+        tileToggle("keypad", "Keypad", "st.unknown.zwave.remote-controller", "st.unknown.zwave.remote-controller", "Keypad")
+        tileToggle("privacyButton", "Privacy Button", "st.custom.buttons.add-icon", "st.custom.buttons.subtract-icon", "PrivacyButton")
+        tileToggle("LED", "Internal LED", "st.illuminance.illuminance.light", "st.illuminance.illuminance.dark", "InternalLED")
 		standardTile("tamper", "device.tamper", inactiveLabel:false, width:2, height:2) {
             state "clear", label:'No Alerts', icon:"st.nest.nest-leaf", backgroundColor:"#00dd00"
 			state "detected", label:'Reset', action:"resetTamperAlert", icon:"st.alarm.alarm.alarm", backgroundColor:"#ff0000"
@@ -147,7 +148,7 @@
             state "reconfigure", label:'Force Reconfigure', action:"configure", icon:"st.secondary.tools"
 		}
         valueTile("labelManual", "device.labelManual", inactiveLabel:true, decoration:"flat", width:6, height:2) {
-            state "default", label: 'NOTE: If you change any of the options below manually outside of SmartThings, you must click refresh.  They will not update automatically.'
+            state "default", label: 'NOTE: If you change any of the options on the lock below manually, you must click refresh.  They will not update automatically.'
         }
         
 		main "toggle"
@@ -619,15 +620,15 @@ private getNumPINUsers() {
 }
 
 // This method creates a boiler plate standardTile configuration for On/Off Attributes
-private tileToggle(varName, label, iconEnabled, iconDisabled, enableMethod, disableMethod, specialAlign="") {
+private tileToggle(varName, label, iconEnabled, iconDisabled, method) {
         standardTile("${varName}Tile", "device.${varName}Tile", inactiveLabel:false, decoration:"flat", width:2, height:2) {
-            state "unsupported", label:"${specialAlign}Unsupported", icon:"${iconDisabled}"
-            state "${varName}Disabled", label:"${specialAlign}${label} Disabled", action:"${enableMethod}", icon:"${iconDisabled}", nextState:"${varName}DChanging"
-            state "${varName}Enabled", label:"${specialAlign}${label} Enabled", action:"${disableMethod}", icon:"${iconEnabled}", nextState:"${varName}EChanging"
-            state "${varName}DChanging", label:"${specialAlign}Updating . . .", icon:"${iconDisabled}"
-            state "${varName}EChanging", label:"${specialAlign}Updating . . .", icon:"${iconEnabled}"
-            state "unsupported${varName.capitalize()}Disabled", label:"${specialAlign}${label} Disabled", icon:"${iconDisabled}"
-            state "unsupported${varName.capitalize()}Enabled", label:"${specialAlign}${label} Enabled", icon:"${iconEnabled}"
+            state "unsupported", label:"Unsupported", icon:"${iconDisabled}"
+            state "${varName}Disabled", label:"${label} Disabled", action:"enable${method}", icon:"${iconDisabled}", nextState:"${varName}DChanging"
+            state "${varName}Enabled", label:"${label} Enabled", action:"disable${method}", icon:"${iconEnabled}", nextState:"${varName}EChanging"
+            state "${varName}DChanging", label:"Updating . . .", icon:"${iconDisabled}"
+            state "${varName}EChanging", label:"Updating . . .", icon:"${iconEnabled}"
+            state "unsupported${varName.capitalize()}Disabled", label:"${label} Disabled", icon:"${iconDisabled}"
+            state "unsupported${varName.capitalize()}Enabled", label:"${label} Enabled", icon:"${iconEnabled}"
 		}
 }
 
