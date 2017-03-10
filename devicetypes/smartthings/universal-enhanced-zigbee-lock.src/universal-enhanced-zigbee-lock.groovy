@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-03-10 : Updated to Version 1.3.  This fixes interroptability with ethayer's new SmartApp
  *  2017-03-08 : Update to fix UI changes released in 2.3 Mobile App. Version 1.2d
  *  2017-03-07 : Update to match new color scheme. Version 1.2c
  *  2017-02-05 : Minor Code Changes. Version 1.2b
@@ -506,14 +507,16 @@ def setCode(codeNumber, code) {
 }
 
 def requestCode(codeNumber) {
+    Map resultMap = [ name: "codeReport", isStateChange: true, displayed: false, value: codeNumber, linkText: getLinkText(device) ]
     if (state["code${codeNumber}"]) {
-        def resultMap = [ name: "codeReport", descriptionText: "Code recovered for user ${codeNumber}", isStateChange: true,
-                          displayed: true, value: codeNumber, date: [ code: decrypt(state["code${codeNumber}"]) ] ]
+        resultMap += [ descriptionText: "Code recovered for user ${codeNumber}", data: [ code: decrypt(state["code${codeNumber}"]) ] ]
         log.debug "requestCode: Code recovered for user $codeNumber: ${decrypt(state["code${codeNumber}"])}"
-        sendEvent(resultMap)
     } else {
+        resultMap += [ descriptionText: "Code not available for user ${codeNumber}", data: [ code: "" ] ]
         log.debug "requestCode: Code not available user $codeNumber"
     }
+    log.info "requestCode() - ${resultMap}"
+    sendEvent(resultMap)
 }
 
 def deleteCode(codeNumber) {
