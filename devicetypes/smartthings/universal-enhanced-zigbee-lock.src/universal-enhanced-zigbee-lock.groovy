@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-03-14 : Bug fix with RBoy SmartApp and User -1.  Version 1.3a
  *  2017-03-10 : Updated to Version 1.3.  This fixes interroptability with ethayer's new SmartApp
  *  2017-03-08 : Update to fix UI changes released in 2.3 Mobile App. Version 1.2d
  *  2017-03-07 : Update to match new color scheme. Version 1.2c
@@ -749,17 +750,17 @@ private Map parseResponseMessage(String description) {
     def cmd = Integer.parseInt(descMap.command,16)
     if (descMap.clusterInt == CLUSTER_DOORLOCK && cmd == DOORLOCK_RESPONSE_OPERATION_EVENT) {
         def value = Integer.parseInt(descMap.data[0], 16)
-        def user = Integer.parseInt(descMap.data[2], 16)
+        def user = ( Integer.parseInt(descMap.data[2], 16) == 255 ) ? "" : Integer.parseInt(descMap.data[2], 16)
         def type
         resultMap.name = "lock"
         if (value == 0){
-            type = ( user == 255 ) ? "locally" : "locally by user ${user}"
+            type = ( user == "" ) ? "locally" : "locally by user ${user}"
             resultMap.data = [ usedCode: user, type: "keypad" ]
         } else if (value == 1){
-            type = ( user == 255 ) ? "remotely by SmartThings" : "remotely by user ${user}"
+            type = ( user == "" ) ? "remotely by SmartThings" : "remotely by user ${user}"
             resultMap.data = [ usedCode: user, type: "remotely" ]
         } else if (value == 2){
-            type = ( user == 255 ) ? "manually" : "manually by user ${user}"
+            type = ( user == "" ) ? "manually" : "manually by user ${user}"
             resultMap.data =  [ usedCode: user, type: "manually" ]
         } else {
             log.info "Operation Event -- ignored"
