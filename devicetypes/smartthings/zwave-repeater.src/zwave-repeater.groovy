@@ -10,6 +10,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ *  Version 1.00 : Initial Release
+ *  Version 1.01 : Better online/offline verification - Responds in 15 seconds
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
@@ -67,11 +69,7 @@ def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerS
 	def msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
 	updateDataValue("MSR", msr)
 	updateDataValue("manufacturer", cmd.manufacturerName)
-    Map myMap = [name: "status", value: 'online', descriptionText: "$device.displayName is online", isStateChange: true, displayed: true]
-    //myMap.displayed = (device.currentValue('status') == 'offline') ? true : false
-    log.debug "${myMap}"
-    sendEvent(myMap)
-    state.onlineStatus = 0
+    state.onlineStatus = true
 }
 
 
@@ -92,12 +90,26 @@ def ping() {
 }
 
 def refresh() {
-    state.onlineStatus = (state.onlineStatus.toString().isInteger()) ? state.onlineStatus + 1 : 0
-    if (state.onlineStatus > 2 && device.currentValue('status') == 'online') {
-        Map myMap = [name: "status", value: 'offline', descriptionText: "$device.displayName is offline", isStateChange: true, displayed: true]
-        log.debug "${myMap}"
-        sendEvent(myMap)
-    }
-    log.debug "state.onlineStatus = ${state.onlineStatus}"
+    state.onlineStatus = false
+    runIn(15, verifyStatus)
 	zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
+}
+
+def verifyStatus() {
+    Map myMap = [name: "status", isStateChange: true, displayed: false]
+    if (! state.lastDisplay) state.lastDisplay = 0
+    // If it has been more than 6 hours display status
+    if (Calendar.getInstance().getTimeInMillis() - state.lastDisplay > (6 * 60 * 60 * 1000)){
+        myMap.displayed = true
+        state.lastDisplay = Calendar.getInstance().getTimeInMillis()
+    }
+    if (state.onlineStatus) {
+        myMap += [ value: 'online', descriptionText: "$device.displayName is online" ]
+        if (device.currentValue('status') == 'offline') myMap.displayed = true
+    } else {
+        myMap += [ value: 'offline', descriptionText: "$device.displayName is offline" ]
+        if (device.currentValue('status') == 'online') myMap.displayed = true
+    }
+    log.debug "${myMap}"
+    sendEvent(myMap)
 }
