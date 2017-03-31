@@ -14,6 +14,7 @@
  *  Version 1.01 : Better online/offline verification - Responds in 15 seconds
  *  Version 1.02 : Code optimizations, checks twice for offline, responds in 10 seconds
  *  Version 1.03 : Code Fixes, for better results changed back to 15 seconds
+ *  Version 1.04 : Will only report in recently when status changes or manual refresh
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
@@ -81,17 +82,22 @@ def zwaveEvent(physicalgraph.zwave.Command cmd) {
 }
 
 def poll() {
-	refresh()
+	sendRequest()
 }
 
 /**
  * PING is used by Device-Watch in attempt to reach the Device
  * */
 def ping() {
-    refresh()
+    sendRequest()
 }
 
 def refresh() {
+    state.manualPress = true
+    sendRequest()
+}
+
+def sendRequest() {
     state.onlineStatus = false
     runIn(15, verifyStatus)
 	zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
@@ -102,21 +108,21 @@ def verifyStatus() {
     if (! state.lastDisplay) state.lastDisplay = 0
     if (state.onlineStatus) {
         myMap += [ value: 'online', descriptionText: "$device.displayName is online" ]
-        if (device.currentValue('status') != 'online') myMap.isStateChange = true
-        if (device.currentValue('status') != 'online' || (Calendar.getInstance().getTimeInMillis() - state.lastDisplay > (6 * 60 * 60 * 1000))) {
+        if (device.currentValue('status') != 'online' || state.manualPress ) {
             myMap.displayed = true
-            state.lastDisplay = Calendar.getInstance().getTimeInMillis()
+            myMap.isStateChange = true
         }
         state.retry = true
     } else if (state.retry) {
 		state.retry = false
-        return refresh()
-    } else if (device.currentValue('status') != 'offline') {
+        return sendRequest()
+    } else if (device.currentValue('status') != 'offline' || state.manualPress ) {
         myMap += [ value: 'offline', descriptionText: "$device.displayName is offline", isStateChange: true, displayed: true ]
         state.retry = true
     } else {
         return
     }
+    state.manualPress = false
     log.debug "${myMap}"
     sendEvent(myMap)
 }
