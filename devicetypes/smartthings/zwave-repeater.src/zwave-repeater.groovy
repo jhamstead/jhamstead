@@ -120,6 +120,7 @@ def verifyStatus() {
         myMap += [ value: 'offline', descriptionText: "$device.displayName is offline", isStateChange: true, displayed: true ]
         state.retry = true
     } else {
+        log.debug "${device.displayName} is offline"
         return
     }
     state.manualPress = false
