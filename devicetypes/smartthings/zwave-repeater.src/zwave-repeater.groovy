@@ -13,6 +13,7 @@
  *  Version 1.00 : Initial Release
  *  Version 1.01 : Better online/offline verification - Responds in 15 seconds
  *  Version 1.02 : Code optimizations, checks twice for offline, responds in 10 seconds
+ *  Version 1.03 : Code Fixes, for better results changed back to 15 seconds
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
@@ -32,7 +33,7 @@ metadata {
 	tiles(scale: 2) {
 		multiAttributeTile(name: "status", type: "generic", width: 6, height: 4) {
 			tileAttribute("device.status", key: "PRIMARY_CONTROL") {
-                attributeState "unknown", label: 'unknown', icon: "st.motion.motion.active", backgroundColor: "#ffffff"
+                attributeState "unknown", label: 'unknown', icon: "st.motion.motion.inactive", backgroundColor: "#ffffff"
 				attributeState "online", label: 'online', icon: "st.motion.motion.active", backgroundColor: "#53a7c0"
 				attributeState "offline", label: 'offline', icon: "st.motion.motion.inactive", backgroundColor: "#ffffff"
 			}
@@ -92,15 +93,16 @@ def ping() {
 
 def refresh() {
     state.onlineStatus = false
-    runIn(10, verifyStatus)
+    runIn(15, verifyStatus)
 	zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
 }
 
 def verifyStatus() {
-    Map myMap = [name: "status", isStateChange: true, displayed: false]
+    Map myMap = [name: "status", isStateChange: false, displayed: false]
     if (! state.lastDisplay) state.lastDisplay = 0
     if (state.onlineStatus) {
         myMap += [ value: 'online', descriptionText: "$device.displayName is online" ]
+        if (device.currentValue('status') != 'online') myMap.isStateChange = true
         if (device.currentValue('status') != 'online' || (Calendar.getInstance().getTimeInMillis() - state.lastDisplay > (6 * 60 * 60 * 1000))) {
             myMap.displayed = true
             state.lastDisplay = Calendar.getInstance().getTimeInMillis()
@@ -110,7 +112,8 @@ def verifyStatus() {
 		state.retry = false
         return refresh()
     } else if (device.currentValue('status') != 'offline') {
-        myMap += [ value: 'offline', descriptionText: "$device.displayName is offline", displayed: true ]
+        myMap += [ value: 'offline', descriptionText: "$device.displayName is offline", isStateChange: true, displayed: true ]
+        state.retry = true
     } else {
         return
     }
