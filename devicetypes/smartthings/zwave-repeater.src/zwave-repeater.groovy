@@ -12,6 +12,7 @@
  *
  *  Version 1.00 : Initial Release
  *  Version 1.01 : Better online/offline verification - Responds in 15 seconds
+ *  Version 1.02 : Code optimizations, checks twice for offline, responds in 10 seconds
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
@@ -91,24 +92,27 @@ def ping() {
 
 def refresh() {
     state.onlineStatus = false
-    runIn(15, verifyStatus)
+    runIn(10, verifyStatus)
 	zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
 }
 
 def verifyStatus() {
     Map myMap = [name: "status", isStateChange: true, displayed: false]
     if (! state.lastDisplay) state.lastDisplay = 0
-    // If it has been more than 6 hours display status
-    if (Calendar.getInstance().getTimeInMillis() - state.lastDisplay > (6 * 60 * 60 * 1000)){
-        myMap.displayed = true
-        state.lastDisplay = Calendar.getInstance().getTimeInMillis()
-    }
     if (state.onlineStatus) {
         myMap += [ value: 'online', descriptionText: "$device.displayName is online" ]
-        if (device.currentValue('status') == 'offline') myMap.displayed = true
+        if (device.currentValue('status') != 'online' || (Calendar.getInstance().getTimeInMillis() - state.lastDisplay > (6 * 60 * 60 * 1000))) {
+            myMap.displayed = true
+            state.lastDisplay = Calendar.getInstance().getTimeInMillis()
+        }
+        state.retry = true
+    } else if (state.retry) {
+		state.retry = false
+        return refresh()
+    } else if (device.currentValue('status') != 'offline') {
+        myMap += [ value: 'offline', descriptionText: "$device.displayName is offline", displayed: true ]
     } else {
-        myMap += [ value: 'offline', descriptionText: "$device.displayName is offline" ]
-        if (device.currentValue('status') == 'online') myMap.displayed = true
+        return
     }
     log.debug "${myMap}"
     sendEvent(myMap)
