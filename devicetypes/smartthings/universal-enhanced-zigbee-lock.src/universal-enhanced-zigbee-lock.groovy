@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-04-03 : Update to Health Check to match SmartThings.  Version 1.4
  *  2017-03-14 : Bug fix with RBoy SmartApp and User -1.  Version 1.3a
  *  2017-03-10 : Updated to Version 1.3.  This fixes interroptability with ethayer's new SmartApp
  *  2017-03-08 : Update to fix UI changes released in 2.3 Mobile App. Version 1.2d
@@ -220,8 +221,8 @@ def configure() {
         zigbee.configureReporting(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME,
                                   DataType.UINT8, 0, 21600, null)
 
-    // Device-Watch allows 2 check-in misses from device (lock state) + ping (plus 1 min lag time)
-    sendEvent(name: "checkInterval", value: 2 * 60 * 60 + 1 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+    // Device-Watch allows 2 check-in misses from device (lock state) + ping (plus 2 min lag time)
+    sendEvent(name: "checkInterval", value: 2 * 60 * 60 + 2 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
 
     log.info "configure() --- cmds: $cmds"
     return refresh() + cmds // send refresh cmds as part of config
@@ -245,12 +246,12 @@ def refresh() {
     return cmds
 }
 
-    /**
-     * PING is used by Device-Watch in attempt to reach the Device
-     * */
+/**
+ * PING is used by Device-Watch in attempt to reach the Device
+ * */
 def ping() {
     log.debug "ping() called"
-    return configure()
+    return zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE)
 }
 
 def updated() {
