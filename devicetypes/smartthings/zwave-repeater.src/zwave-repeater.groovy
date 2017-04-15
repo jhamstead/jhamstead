@@ -85,6 +85,11 @@ def poll() {
 	sendRequest()
 }
 
+def installed(){
+// Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
+    sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
+}
+
 /**
  * PING is used by Device-Watch in attempt to reach the Device
  * */
@@ -99,8 +104,8 @@ def refresh() {
 
 def sendRequest() {
     state.onlineStatus = false
-    runIn(15, verifyStatus)
-	zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
+    runIn(25, verifyStatus)
+	return zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
 }
 
 def verifyStatus() {

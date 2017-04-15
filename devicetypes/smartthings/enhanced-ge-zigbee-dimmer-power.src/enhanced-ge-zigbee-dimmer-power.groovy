@@ -15,7 +15,7 @@
 *
 */
 metadata {
-    definition (name: "Enhanced GE ZigBee Dimmer Power", namespace: "smartthings", author: "jhamstead", ocfDeviceType: "oic.d.switch") {
+    definition (name: "Enhanced GE ZigBee Dimmer Power", namespace: "smartthings", author: "jhamstead", ocfDeviceType: "oic.d.light") {
         capability "Actuator"
         capability "Configuration"
         capability "Refresh"
