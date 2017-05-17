@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-05-17 : Fix for CoRE Compatibility.  Version 1.5
  *  2017-04-03 : Update to Health Check to match SmartThings.  Version 1.4
  *  2017-03-14 : Bug fix with RBoy SmartApp and User -1.  Version 1.3a
  *  2017-03-10 : Updated to Version 1.3.  This fixes interroptability with ethayer's new SmartApp
@@ -593,15 +594,20 @@ private fireCommand(List commands) { //Function used from SmartThings Lightify D
 }
 
 // provides compatibility with Erik Thayer's "Lock Code Manager"
-private reportAllCodes() { //from garyd9's lock DTH
+private reportAllCodes() {
     def resultMap = [ name: "reportAllCodes", data: [:], displayed: false, isStateChange: false, type: "physical" ]
+    def numberOfCodes = 0
     state.each { entry ->
         //iterate through all the state entries and add them to the event data to be handled by application event handlers
         if ( entry.value && entry.key ==~ /^code\d+$/) {
 		    resultMap.data.put(entry.key, decrypt(entry.value))
+            if (numberOfCodes < entry.key.drop(4).toInteger()) numberOfCodes = entry.key.drop(4).toInteger()
         } else if ( entry.key ==~ /^code\d+$/ ) {
             resultMap.data.put(entry.key, entry.value)
         }
+    }
+    if (device.currentValue("numCodes") != numberOfCodes) {
+        sendEvent([ name: "numCodes", descriptionText: "Number of Codes: ${numberOfCodes}", value: numberOfCodes ])
     }
     sendEvent(resultMap)
 }
@@ -907,5 +913,6 @@ private Map parseResponseMessage(String description) {
     } else {
         log.debug "parseResponseMessage() --- ignoring response - ${description}"
     }
+    reportAllCodes()
     return resultMap
 }
