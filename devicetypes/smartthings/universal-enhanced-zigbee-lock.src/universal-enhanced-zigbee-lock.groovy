@@ -840,6 +840,7 @@ private Map parseResponseMessage(String description) {
                 } else {
                     resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
                 }
+                reportAllCodes()
 				break
             case 3:
                 if ( codeNumber == 255 ) {
@@ -863,6 +864,7 @@ private Map parseResponseMessage(String description) {
                     resultMap.data = [ code: "" ]
                     state["code${codeNumber}"] = ""
                 }
+                reportAllCodes()
 				break
             case 4:
                 resultMap.descriptionText = "User ${codeNumber}'s PIN code changed ${type}"
@@ -891,6 +893,7 @@ private Map parseResponseMessage(String description) {
             resultMap.displayed = true
             resultMap.value = codeNumber
             resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
+            reportAllCodes()
         }
     } else if (descMap.clusterInt == CLUSTER_ALARM && cmd == ALARM_COUNT) {
         def value = Integer.parseInt(descMap.data[0], 16)
@@ -913,6 +916,5 @@ private Map parseResponseMessage(String description) {
     } else {
         log.debug "parseResponseMessage() --- ignoring response - ${description}"
     }
-    reportAllCodes()
     return resultMap
 }
