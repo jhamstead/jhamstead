@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-05-17 : Changed CoRE update (numCodes now reports max codes allowed).  Added fingerprint for YRD226/246. Version 1.6
  *  2017-05-17 : Fix for CoRE Compatibility.  Version 1.5
  *  2017-04-03 : Update to Health Check to match SmartThings.  Version 1.4
  *  2017-03-14 : Bug fix with RBoy SmartApp and User -1.  Version 1.3a
@@ -86,7 +87,7 @@
         attribute "LED", "enum", [true,false]
         attribute "volume", "enum", ["Silent","Low","High"]
         attribute "invalidCode", "enum", [true,false]
-        attribute "numPINUsers", "number"
+        //attribute "numPINUsers", "number"
         //attribute "maxPINLength", "number"
         //attribute "minPINLength", "number"
 
@@ -98,6 +99,7 @@
         fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRD210 PB DB", deviceJoinName: "Yale Push Button Deadbolt Lock"
         fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRD220/240 TSDB", deviceJoinName: "Yale Touch Screen Deadbolt Lock"
         fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRL210 PB LL", deviceJoinName: "Yale Push Button Lever Lock"
+        fingerprint profileId: "0104", inClusters: "0000,0001,0003,0009,000A,0101,0020", outClusters: "000A,0019", manufacturer: "Yale", model: "YRD226/246 TSDB", deviceJoinName: "Yale Touch Screen Deadbolt Lock"
     }
 
     tiles(scale: 2) {
@@ -242,7 +244,6 @@ def refresh() {
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME)
-        reportAllCodes()
     log.info "refresh() --- cmds: $cmds"
     return cmds
 }
@@ -596,18 +597,13 @@ private fireCommand(List commands) { //Function used from SmartThings Lightify D
 // provides compatibility with Erik Thayer's "Lock Code Manager"
 private reportAllCodes() {
     def resultMap = [ name: "reportAllCodes", data: [:], displayed: false, isStateChange: false, type: "physical" ]
-    def numberOfCodes = 0
     state.each { entry ->
         //iterate through all the state entries and add them to the event data to be handled by application event handlers
         if ( entry.value && entry.key ==~ /^code\d+$/) {
 		    resultMap.data.put(entry.key, decrypt(entry.value))
-            if (numberOfCodes < entry.key.drop(4).toInteger()) numberOfCodes = entry.key.drop(4).toInteger()
         } else if ( entry.key ==~ /^code\d+$/ ) {
             resultMap.data.put(entry.key, entry.value)
         }
-    }
-    if (device.currentValue("numCodes") != numberOfCodes) {
-        sendEvent([ name: "numCodes", descriptionText: "Number of Codes: ${numberOfCodes}", value: numberOfCodes ])
     }
     sendEvent(resultMap)
 }
@@ -626,7 +622,7 @@ private getMinPINLength() {
 
 private getNumPINUsers() {
     def num_users = 30
-    if ( device.currentValue("numPINUsers") ) num_users = device.currentValue("numPINUsers")
+    if ( device.currentValue("numCodes") ) num_users = device.currentValue("numCodes")
     return num_users
 }
 
@@ -707,7 +703,7 @@ private Map parseReportAttributeMessage(String description) {
         resultMap = [ name: "maxPINLength", descriptionText: "Maximum PIN length: ${value}", value: value ]
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_NUM_PIN_USERS && descMap.value) {
         def value = Integer.parseInt(descMap.value, 16)
-        resultMap = [ name: "numPINUsers", descriptionText: "Maximum Number of PIN Users: ${value}", value: value ]
+        resultMap = [ name: "numCodes", descriptionText: "Maximum Number of PIN Users: ${value}", value: value ]
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_AUTO_RELOCK_TIME && descMap.value) {
         resultMap = parseTileToggle("autoLockTime", Integer.parseInt(descMap.value, 16), false) // is not True/False
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_ONE_TOUCH_LOCK && descMap.value) {
