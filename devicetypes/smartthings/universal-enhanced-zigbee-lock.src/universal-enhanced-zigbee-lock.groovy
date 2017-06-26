@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-05-17 : 1.6a - Bug Fix for error created in version 1.6
  *  2017-05-17 : Changed CoRE update (numCodes now reports max codes allowed).  Added fingerprint for YRD226/246. Version 1.6
  *  2017-05-17 : Fix for CoRE Compatibility.  Version 1.5
  *  2017-04-03 : Update to Health Check to match SmartThings.  Version 1.4
@@ -244,6 +245,7 @@ def refresh() {
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_SOUND_VOLUME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_WRONG_CODE_ENTRY_LIMIT) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_USER_CODE_DISABLE_TIME)
+        reportAllCodes()
     log.info "refresh() --- cmds: $cmds"
     return cmds
 }
@@ -610,19 +612,19 @@ private reportAllCodes() {
 
 private getMaxPINLength() {
     def max_length = 8
-    if ( device.currentValue("maxPINLength") ) max_length = device.currentValue("maxPINLength")
+    if ( device.currentValue("maxPINLength") ) max_length = device.currentValue("maxPINLength").toInteger()
     return max_length
 }
 
 private getMinPINLength() {
     def min_length = 4
-    if ( device.currentValue("minPINLength") ) min_length = device.currentValue("minPINLength")
+    if ( device.currentValue("minPINLength") ) min_length = device.currentValue("minPINLength").toInteger()
     return min_length
 }
 
 private getNumPINUsers() {
     def num_users = 30
-    if ( device.currentValue("numCodes") ) num_users = device.currentValue("numCodes")
+    if ( device.currentValue("numCodes") ) num_users = device.currentValue("numCodes").toInteger()
     return num_users
 }
 
@@ -836,7 +838,6 @@ private Map parseResponseMessage(String description) {
                 } else {
                     resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
                 }
-                reportAllCodes()
 				break
             case 3:
                 if ( codeNumber == 255 ) {
@@ -860,7 +861,6 @@ private Map parseResponseMessage(String description) {
                     resultMap.data = [ code: "" ]
                     state["code${codeNumber}"] = ""
                 }
-                reportAllCodes()
 				break
             case 4:
                 resultMap.descriptionText = "User ${codeNumber}'s PIN code changed ${type}"
@@ -889,7 +889,6 @@ private Map parseResponseMessage(String description) {
             resultMap.displayed = true
             resultMap.value = codeNumber
             resultMap.data = [ code: decrypt(state["code${codeNumber}"]) ]
-            reportAllCodes()
         }
     } else if (descMap.clusterInt == CLUSTER_ALARM && cmd == ALARM_COUNT) {
         def value = Integer.parseInt(descMap.data[0], 16)
