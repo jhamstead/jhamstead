@@ -15,12 +15,14 @@
  *  Version 1.02 : Code optimizations, checks twice for offline, responds in 10 seconds
  *  Version 1.03 : Code Fixes, for better results changed back to 15 seconds
  *  Version 1.04 : Will only report in recently when status changes or manual refresh
+ *  Version 1.05 : Updated color to match SmartThings changes, change updated() to configure(), create force reconfigure
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
 		capability "Health Check"
 		capability "Polling"
 		capability "Refresh"
+        capability "Configuration"
 
 		fingerprint inClusters: "0x", deviceJoinName: "Z-Wave Repeater"
 	}
@@ -35,7 +37,7 @@ metadata {
 		multiAttributeTile(name: "status", type: "generic", width: 6, height: 4) {
 			tileAttribute("device.status", key: "PRIMARY_CONTROL") {
                 attributeState "unknown", label: 'unknown', icon: "st.motion.motion.inactive", backgroundColor: "#ffffff"
-				attributeState "online", label: 'online', icon: "st.motion.motion.active", backgroundColor: "#53a7c0"
+				attributeState "online", label: 'online', icon: "st.motion.motion.active", backgroundColor: "#00A0DC"
 				attributeState "offline", label: 'offline', icon: "st.motion.motion.inactive", backgroundColor: "#ffffff"
 			}
 		}
@@ -43,15 +45,20 @@ metadata {
 		standardTile("refresh", "device.refresh", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
+        
+        standardTile("reconfigure", "device.reconfigure", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
+			state "default", label:'Force Reconfigure', action:"configure", icon:"st.secondary.refresh"
+		}
 
 		main "status"
-		details(["status","refresh"])
+		details(["status","refresh","reconfigure"])
 	}
 }
 
-def updated(){
-// Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
+def configure() {
+    // Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
+    log.debug "configure() - checkinterval duration of 32min"
 }
 
 def parse(String description) {
