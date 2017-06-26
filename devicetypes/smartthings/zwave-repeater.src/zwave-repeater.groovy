@@ -59,6 +59,7 @@ def configure() {
     // Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
     log.debug "configure() - checkinterval duration of 32min"
+	refresh()
 }
 
 def parse(String description) {
