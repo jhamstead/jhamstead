@@ -16,6 +16,7 @@
  *  Version 1.03 : Code Fixes, for better results changed back to 15 seconds
  *  Version 1.04 : Will only report in recently when status changes or manual refresh
  *  Version 1.05 : Updated color to match SmartThings changes, change updated() to configure(), create force reconfigure
+ *  Version 1.06 : Increased runIn to 60.  Decrease false positives
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
@@ -59,7 +60,7 @@ def configure() {
     // Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
     log.debug "configure() - checkinterval duration of 32min"
-	refresh()
+    refresh()
 }
 
 def parse(String description) {
@@ -112,7 +113,7 @@ def refresh() {
 
 def sendRequest() {
     state.onlineStatus = false
-    runIn(25, verifyStatus)
+    runIn(60, verifyStatus)
 	return zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
 }
 
@@ -130,7 +131,7 @@ def verifyStatus() {
 		state.retry = false
         return sendRequest()
     } else if (device.currentValue('status') != 'offline' || state.manualPress ) {
-        myMap += [ value: 'offline', descriptionText: "$device.displayName is offline", isStateChange: true, displayed: true ]
+        myMap += [ value: 'offline', descriptionText: "$device.displyName is offline", isStateChange: true, displayed: true ]
         state.retry = true
     } else {
         log.debug "${device.displayName} is offline"
