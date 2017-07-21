@@ -18,6 +18,7 @@
  *  Version 1.05 : Updated color to match SmartThings changes, change updated() to configure(), create force reconfigure
  *  Version 1.06 : Increased runIn to 60.  Decrease false positives
  *  Version 2.00 : Algorithm change to fix Health Check false positives
+ *  Version 2.00a: Bug fix
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
@@ -116,6 +117,7 @@ def refresh() {
     sendRequest()
 }
 
+// Private methods
 def sendRequest() {
     Map myMap = [name: "status", isStateChange: true, displayed: true, value: 'offline', descriptionText: "$device.displayName is offline" ]
     if (state.failedTries >= 2) {
@@ -126,7 +128,6 @@ def sendRequest() {
         }
         log.info "Device is offline"
     }
-    state.failedTries = state.failedTries + 1
-    
-	return zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
+    state.failedTries = state.failedTries + 1 
+	sendHubCommand([value].collect {new physicalgraph.device.HubAction(zwave.manufacturerSpecificV1.manufacturerSpecificGet().format())})
 }
