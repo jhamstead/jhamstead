@@ -17,11 +17,11 @@
  *  Version 1.04 : Will only report in recently when status changes or manual refresh
  *  Version 1.05 : Updated color to match SmartThings changes, change updated() to configure(), create force reconfigure
  *  Version 1.06 : Increased runIn to 60.  Decrease false positives
+ *  Version 2.00 : Algorithm change to fix Health Check false positives
  */
 metadata {
 	definition (name: "Z-Wave Repeater", namespace: "smartthings", author: "jhamstead") {
 		capability "Health Check"
-		capability "Polling"
 		capability "Refresh"
         capability "Configuration"
 
@@ -57,6 +57,9 @@ metadata {
 }
 
 def configure() {
+    state.failedTries = 0
+    unschedule()
+    runEvery15Minutes(sendRequest)
     // Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
 	sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
     log.debug "configure() - checkinterval duration of 32min"
@@ -74,6 +77,16 @@ def parse(String description) {
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerSpecificReport cmd) {
+    Map myMap = [name: "status", isStateChange: false, displayed: false, value: 'online', descriptionText: "$device.displayName is online" ]
+    if (device.currentValue('status') != 'online' || state.manualPress ) {
+       myMap.displayed = true
+       myMap.isStateChange = true
+    }
+    state.failedTries = 0
+    state.manualPress = false
+    log.info "Device is online"
+    sendEvent(myMap)
+    
 	log.debug "manufacturerId:   ${cmd.manufacturerId}"
 	log.debug "manufacturerName: ${cmd.manufacturerName}"
 	log.debug "productId:        ${cmd.productId}"
@@ -81,22 +94,13 @@ def zwaveEvent(physicalgraph.zwave.commands.manufacturerspecificv2.ManufacturerS
 	def msr = String.format("%04X-%04X-%04X", cmd.manufacturerId, cmd.productTypeId, cmd.productId)
 	updateDataValue("MSR", msr)
 	updateDataValue("manufacturer", cmd.manufacturerName)
-    state.onlineStatus = true
+
 }
 
 
 def zwaveEvent(physicalgraph.zwave.Command cmd) {
 	// Handles all Z-Wave commands we aren't interested in
 	[:]
-}
-
-def poll() {
-	sendRequest()
-}
-
-def installed(){
-// Device-Watch simply pings if no device events received for checkInterval duration of 32min = 2 * 15min + 2min lag time
-    sendEvent(name: "checkInterval", value: 2 * 15 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
 }
 
 /**
@@ -108,36 +112,21 @@ def ping() {
 
 def refresh() {
     state.manualPress = true
+    log.debug "refresh() - Manual refresh"
     sendRequest()
 }
 
 def sendRequest() {
-    state.onlineStatus = false
-    runIn(60, verifyStatus)
-	return zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
-}
-
-def verifyStatus() {
-    Map myMap = [name: "status", isStateChange: false, displayed: false]
-    if (! state.lastDisplay) state.lastDisplay = 0
-    if (state.onlineStatus) {
-        myMap += [ value: 'online', descriptionText: "$device.displayName is online" ]
-        if (device.currentValue('status') != 'online' || state.manualPress ) {
-            myMap.displayed = true
-            myMap.isStateChange = true
+    Map myMap = [name: "status", isStateChange: true, displayed: true, value: 'offline', descriptionText: "$device.displayName is offline" ]
+    if (state.failedTries >= 2) {
+        if ( device.currentValue('status') != 'offline' || state.manualPress ) {
+           log.debug "${myMap}"
+           sendEvent(myMap)
+           state.manualPress = false
         }
-        state.retry = true
-    } else if (state.retry) {
-		state.retry = false
-        return sendRequest()
-    } else if (device.currentValue('status') != 'offline' || state.manualPress ) {
-        myMap += [ value: 'offline', descriptionText: "$device.displyName is offline", isStateChange: true, displayed: true ]
-        state.retry = true
-    } else {
-        log.debug "${device.displayName} is offline"
-        return
+        log.info "Device is offline"
     }
-    state.manualPress = false
-    log.debug "${myMap}"
-    sendEvent(myMap)
+    state.failedTries = state.failedTries + 1
+    
+	return zwave.manufacturerSpecificV1.manufacturerSpecificGet().format()
 }
