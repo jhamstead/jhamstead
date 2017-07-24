@@ -545,7 +545,7 @@ def reloadAllCodes() {
         def codeNumber = entry.key.find(/\d+/)
         if ( entry.key ==~ /^code(\d+)$/ && entry.value ) {
             log.debug "Reloading Code for User ${codeNumber}"
-            cmds = setCode(codeNumber, decrypt(entry.value))
+            cmd = setCode(codeNumber, decrypt(entry.value))
             cmds += cmd
             fireCommand(cmd)
         }
