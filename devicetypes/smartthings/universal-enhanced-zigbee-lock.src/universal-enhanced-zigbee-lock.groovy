@@ -1,8 +1,9 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
- *  2017-05-17 : 1.6a - Bug Fix for error created in version 1.6
- *  2017-05-17 : Changed CoRE update (numCodes now reports max codes allowed).  Added fingerprint for YRD226/246. Version 1.6
+ *  2017-07-23 : 1.7 - Bug fix for when lock and DTH are no longer in sync
+ *  2017-06-25 : 1.6a - Bug Fix for error created in version 1.6
+ *  2017-06-23 : Changed CoRE update (numCodes now reports max codes allowed).  Added fingerprint for YRD226/246. Version 1.6
  *  2017-05-17 : Fix for CoRE Compatibility.  Version 1.5
  *  2017-04-03 : Update to Health Check to match SmartThings.  Version 1.4
  *  2017-03-14 : Bug fix with RBoy SmartApp and User -1.  Version 1.3a
@@ -227,7 +228,7 @@ def configure() {
 
     // Device-Watch allows 2 check-in misses from device (lock state) + ping (plus 2 min lag time)
     sendEvent(name: "checkInterval", value: 2 * 60 * 60 + 2 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
-
+    reloadAllCodes()
     log.info "configure() --- cmds: $cmds"
     return refresh() + cmds // send refresh cmds as part of config
 }
