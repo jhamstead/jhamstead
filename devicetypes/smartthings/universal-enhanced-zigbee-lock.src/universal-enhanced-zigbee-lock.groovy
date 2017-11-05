@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-11-05 : 1.7a - Temp version with extra debugging
  *  2017-07-23 : 1.7 - Bug fix for when lock and DTH are no longer in sync
  *  2017-06-25 : 1.6a - Bug Fix for error created in version 1.6
  *  2017-06-23 : Changed CoRE update (numCodes now reports max codes allowed).  Added fingerprint for YRD226/246. Version 1.6
@@ -508,6 +509,12 @@ def setCode(codeNumber, code) {
         state["code${codeNumber}"] = encrypt(code)
     }else{
         log.debug "Invalid Input: Unable to set code $codeNumber to $code"
+        log.debug "Code Length: " + code.toString().size()
+        log.debug "Max Length: " + getMaxPINLength()
+        log.debug "Min Length: " + getMinPINLength()
+        log.debug "Code Is Numeric: " + code.isNumber()
+        log.debug "User Code Number: " + codeNumber.toInteger()
+        log.debug "Max Num Users: " + getNumPINUsers()
     }
     log.info "setCode() - ${cmds}"
     return cmds
