@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2017-11-15 : 1.7b - Special Version without the number of users check
  *  2017-11-05 : 1.7a - Temp version with extra debugging
  *  2017-07-23 : 1.7 - Bug fix for when lock and DTH are no longer in sync
  *  2017-06-25 : 1.6a - Bug Fix for error created in version 1.6
@@ -238,7 +239,6 @@ def refresh() {
     def cmds =
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_LOCKSTATE) +
         zigbee.readAttribute(CLUSTER_POWER, POWER_ATTR_BATTERY_PERCENTAGE_REMAINING) +
-        zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_NUM_PIN_USERS) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_AUTO_RELOCK_TIME) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_ONE_TOUCH_LOCK) +
         zigbee.readAttribute(CLUSTER_DOORLOCK, DOORLOCK_ATTR_OPERATING_MODE) +
@@ -632,7 +632,7 @@ private getMinPINLength() {
 
 private getNumPINUsers() {
     def num_users = 30
-    if ( device.currentValue("numCodes") ) num_users = device.currentValue("numCodes").toInteger()
+    //if ( device.currentValue("numCodes") ) num_users = device.currentValue("numCodes").toInteger()
     return num_users
 }
 
