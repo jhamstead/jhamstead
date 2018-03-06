@@ -842,7 +842,7 @@ private String setFlipMirrorMotionRotateNv() {  // Return the string of commands
 
 //*******************************  Network Commands  *******************************
 
-private hubGet(def apiCommand, Boolean isImage = false) {  // Called for all non-Image requests and Local IP Image requests
+private hubGet(def apiCommand) {  // Called for all non-Image requests and Local IP Image requests
     doDebug("hubGet -> BEGIN", "info", 0)
     doDebug("hubGet -> apiCommand = $apiCommand (size = ${apiCommand.size()})", "info")
 
@@ -857,7 +857,7 @@ private hubGet(def apiCommand, Boolean isImage = false) {  // Called for all non
     }
 
     // Do the deed
-    def action = createCameraRequest("GET", apiCommand, true, [outputMsgToS3: isImage], false)
+    def action = createCameraRequest("GET", apiCommand, true)
 	sendHubCommand(action)
 }
 
@@ -880,9 +880,9 @@ private hubGetImage(def apiCommand) {  // Called when taking a picture
 	sendHubCommand(action)
 }
 
-private physicalgraph.device.HubAction createCameraRequest(method, uri, useAuth = false, payload = null, isRetry = false, startRequest = null, startHeader = null) {
+private physicalgraph.device.HubAction createCameraRequest(method, uri, useAuth = false, options = null, isRetry = false, startRequest = null, startHeader = null) {
     doDebug("createCameraRequest -> BEGIN", "info", 1)
-	doDebug("Creating camera request with method: ${method}, uri: ${uri}, payload: ${payload}, isRetry: ${isRetry}", "info")
+	doDebug("Creating camera request with method: ${method}, uri: ${uri}, options: ${options}, isRetry: ${isRetry}", "info")
 
 	try {
 		def headers = [
@@ -909,16 +909,20 @@ private physicalgraph.device.HubAction createCameraRequest(method, uri, useAuth 
 			path: uri,
 			headers: headers
 		]
-		if (payload) {
-			data.body = payload
-		}
 
 		// Use a custom callback because this seems to bypass the need for DNI to be hex IP:port or MAC address
-		def action = new physicalgraph.device.HubAction(data, null, [callback: parseResponse])
-		// log.debug("Created new HubAction, requestId: ${action.requestId}")
+		//def action = new physicalgraph.device.HubAction(data, null, [callback: parseResponse])
+        def action
+        if(isRetry && options) {
+        	options.put('callback', 'parseResponse')
+            action = new physicalgraph.device.HubAction(data, null, options)
+        } else {
+            action = new physicalgraph.device.HubAction(data, null, [callback: parseResponse])
+        }
+		//log.debug("Created new HubAction, requestId: ${action.requestId}")
 
 		// Persist request info in case we need to repeat it
-        state.lastRequest = ["${action.requestId}": [method: method, uri: uri, useAuth: useAuth, payload: payload, isRetry: isRetry, startRequest: startRequest, startHeader: startHeader] ]
+        state.lastRequest = ["${action.requestId}": [method: method, uri: uri, useAuth: useAuth, options: options, isRetry: isRetry, startRequest: startRequest, startHeader: startHeader] ]
 
 		return action
 	}
@@ -969,7 +973,7 @@ private String md5(String str) {
 //*******************************  Process Responses  ******************************
 
 def parseResponse(physicalgraph.device.HubResponse response) {
-	doDebug("parseResponse -> BEGIN", "info", 1)
+	doDebug("parseResponse -> BEGIN", "info")
 	return parse(response.description)
 }
 
@@ -978,7 +982,7 @@ def parse(String description) {  // 'parse' Method: Parse events into attributes
     def retResult = []
 
     doDebug("parse -> BEGIN", "info", 1)
-    doDebug("parse -> headers = ${response.headers.'Content-Type'}, status = $response.status", "info")
+    //doDebug("parse -> response = ${response}", "info")
 
 	// Handle unknown responses
 	if (!state.lastRequest["${response.requestId}"]) {
@@ -986,30 +990,17 @@ def parse(String description) {  // 'parse' Method: Parse events into attributes
 		return
 	}
 
-    if (response.status == 200) {
+    if(response.tempImageKey){
+        try {
+            storeTemporaryImage(response.tempImageKey, getPictureName())
+        } catch (Exception e) {
+            doDebug("parse -> ${e}", "error", -1)
+        }
+    }
+    else if (response.status == 200) {
         def lastRequest = state.lastRequest["${response.requestId}"]
 		state.lastRequest.remove("${response.requestId}")
-        if (response.headers.'Content-Type'.contains("image/jpeg")) {  // Image Response
-            if (response.data) {
-                def image = response.data
-                def bytes = image.buf
-
-                // Broadcast our image file data (thanks to RBoy for the imageDataJpeg saving)
-                String str = bytes.encodeBase64()
-                sendEvent(name: "imageDataJpeg", value: str, isStateChange: true, displayed: false)
-
-                def picName = getPictureName()
-                doDebug("parse -> Saving image '$picName' to the SmartThings cloud", "info")
-                storeImage(picName, image)  // Removes the data from the 'image' object
-            }
-            else {
-                doDebug("Received an empty response from camera, expecting a JPEG image", "warn")
-            }
-        }
-        else { // Non-Image Response
-            //def body = response.data.getText()
-            retResult = processResponse(lastRequest.body)
-        }
+        retResult = processResponse(lastRequest.body)
     }
     else if (response.status == 401) {
 		// NEED MORE AUTH
@@ -1052,13 +1043,12 @@ def retryLastRequest(data, wwwHeader) {
 	doDebug("retryLastRequest -> lastRequest = ${lastRequest}", "info")
 
     if(lastRequest.uri.contains('start')) {
-        def action = createCameraRequest(lastRequest.method, lastRequest.uri.replaceAll('start','stop'), lastRequest.useAuth, lastRequest.payload, false, lastRequest, wwwHeader)
+        def action = createCameraRequest(lastRequest.method, lastRequest.uri.replaceAll('start','stop'), lastRequest.useAuth, lastRequest.options, false, lastRequest, wwwHeader)
         sendHubCommand(action)
-        //hubGet(lastRequest.uri.replaceAll('start','stop'))
     }else if(lastRequest.uri.contains('stop')) {
         doDebug("retryLastRequest -> Start = ${lastRequest.startRequest}", "info")
         doDebug("retryLastRequest -> Stop = ${lastRequest}", "info")
-        delayBetween(setDigest(lastRequest.startRequest, lastRequest.startHeader), setDigest(lastRequest, wwwHeader), msDelay())
+        delayBetween([setDigest(lastRequest.startRequest, lastRequest.startHeader), setDigest(lastRequest, wwwHeader)], msDelay())
     } else {
        setDigest(lastRequest, wwwHeader)
     }
@@ -1069,7 +1059,7 @@ private setDigest(lastRequest, wwwHeader) {
     doDebug("setDigest -> ACTION = ${lastRequest}", "info")
     doDebug("setDigest -> HEADER = ${wwwHeader}", "info")
     handleWWWAuthenticateHeader(wwwHeader)
-    def action = createCameraRequest(lastRequest.method, lastRequest.uri, lastRequest.useAuth, lastRequest.payload, true)
+    def action = createCameraRequest(lastRequest.method, lastRequest.uri, lastRequest.useAuth, lastRequest.options, true)
     sendHubCommand(action)
 }
 
