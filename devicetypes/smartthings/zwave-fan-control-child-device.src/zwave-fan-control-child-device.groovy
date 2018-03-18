@@ -36,14 +36,14 @@ metadata {
    tiles(scale: 2) {
 
         standardTile("fanSpeed", "fanSpeed", inactiveLabel: false, width: 2, height: 2) {
-            state "default01", label: 'LOW', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#ffffff"
-			state "on01", label: 'LOW', action: "switch.off", icon:"st.Home.home30", backgroundColor: "#00A0DC"
+            state "default01", label: 'LOW', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#ffffff", nextState: "adjusting01"
+			state "on01", label: 'LOW', action: "switch.off", icon:"st.Home.home30", backgroundColor: "#00A0DC", nextState: "adjusting01"
             state "adjusting01", label:'LOW', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#30D0FF"
-            state "default02", label: 'MED', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#ffffff"
-			state "on02", label: 'MED', action: "switch.off", icon:"st.Home.home30", backgroundColor: "#00A0DC"
+            state "default02", label: 'MED', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#ffffff", nextState: "adjusting02"
+			state "on02", label: 'MED', action: "switch.off", icon:"st.Home.home30", backgroundColor: "#00A0DC", nextState: "adjusting02"
             state "adjusting02", label:'MED', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#30D0FF"
-            state "default03", label: 'HIGH', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#ffffff"
-			state "on03", label: 'HIGH', action: "switch.off", icon:"st.Home.home30", backgroundColor: "#00A0DC"
+            state "default03", label: 'HIGH', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#ffffff", nextState: "adjusting03"
+			state "on03", label: 'HIGH', action: "switch.off", icon:"st.Home.home30", backgroundColor: "#00A0DC", nextState: "adjusting03"
             state "adjusting03", label:'HIGH', action: "switch.on", icon:"st.Home.home30", backgroundColor: "#30D0FF"
 		}
     	main(["fanSpeed"])        
@@ -54,7 +54,9 @@ metadata {
 
 def on() {
     log.info "CHILD ${getFanAbbr()["${device.getDataValue('speedVal')}"]} TURNED ON"
-	parent.setLevel("${getFanAbbr()["${device.getDataValue('speedVal')}"]}")
+	if("${device.getDataValue('speedVal')}" == "01") { parent.lowSpeed() }
+    else if("${device.getDataValue('speedVal')}" == "02") { parent.medSpeed() }
+    else if("${device.getDataValue('speedVal')}" == "03") { parent.highSpeed() }
 }
 
 def off() {

@@ -153,11 +153,8 @@ def createEvent(physicalgraph.zwave.commands.switchmultilevelv1.SwitchMultilevel
 
 def doCreateEvent(physicalgraph.zwave.Command cmd, Map item1) {
 	def result = [item1]
-	def lowThresholdvalue = (settings.lowThreshold != null && settings.lowThreshold != "") ? settings.lowThreshold.toInteger() : 33
-	def medThresholdvalue = (settings.medThreshold != null && settings.medThreshold != "") ? settings.medThreshold.toInteger() : 67
-	def highThresholdvalue = (settings.highThreshold != null && settings.highThreshold != "") ? settings.highThreshold.toInteger() : 99
 
-	item1.name = "switch"
+item1.name = "switch"
 	item1.value = cmd.value ? "on" : "off"
 	if (item1.value == "off") {
 		sendEvent(name: "currentState", value: "OFF" as String)
@@ -183,28 +180,36 @@ def doCreateEvent(physicalgraph.zwave.Command cmd, Map item1) {
 		item2.isStateChange = isStateChange(device, item2.name, item2.value)
 		item2.displayed = false
 
-        def children = getChildDevices()
-        children.each {child->
-           def childSpeedVal = child.getDataValue('speedVal')
-		   if (item2.value.toInteger() <= lowThresholdvalue && childSpeedVal == "01") {
-              child.sendEvent(name:"fanSpeed", value:"on01")
-              sendEvent(name:"currentState", value:"LOW")
-           } else if (item2.value.toInteger() >= lowThresholdvalue+1 && item2.value.toInteger() <= medThresholdvalue && childSpeedVal == "02") {
-              child.sendEvent(name:"fanSpeed", value:"on02")
-              sendEvent(name:"currentState", value:"MED")
-           } else if (item2.value.toInteger() >= medThresholdvalue+1 && childSpeedVal == "03") {
-              child.sendEvent(name:"fanSpeed", value:"on03")
-              sendEvent(name:"currentState", value:"HIGH")
-           } else {
-              child.sendEvent(name:"fanSpeed", value:"default${childSpeedVal}")
-           }
-        }
-            
-
+        setTiles(item2.value.toInteger())
+   
 		result << item2
 	}
 	log.trace "doCreateEvent"
 	result
+}
+
+def setTiles(value) {
+
+	def lowThresholdvalue = (settings.lowThreshold != null && settings.lowThreshold != "") ? settings.lowThreshold.toInteger() : 33
+	def medThresholdvalue = (settings.medThreshold != null && settings.medThreshold != "") ? settings.medThreshold.toInteger() : 67
+	def highThresholdvalue = (settings.highThreshold != null && settings.highThreshold != "") ? settings.highThreshold.toInteger() : 99
+
+    def children = getChildDevices()
+    children.each {child->
+        def childSpeedVal = child.getDataValue('speedVal')
+	    if (value <= lowThresholdvalue && childSpeedVal == "01") {
+            child.sendEvent(name:"fanSpeed", value:"on01")
+            sendEvent(name:"currentState", value:"LOW")
+        } else if (value >= lowThresholdvalue+1 && value <= medThresholdvalue && childSpeedVal == "02") {
+            child.sendEvent(name:"fanSpeed", value:"on02")
+            sendEvent(name:"currentState", value:"MED")
+        } else if (value >= medThresholdvalue+1 && childSpeedVal == "03") {
+            child.sendEvent(name:"fanSpeed", value:"on03")
+            sendEvent(name:"currentState", value:"HIGH")
+        } else {
+            child.sendEvent(name:"fanSpeed", value:"default${childSpeedVal}")
+        }
+    }
 }
 
 def zwaveEvent(physicalgraph.zwave.commands.configurationv1.ConfigurationReport cmd) {
@@ -231,67 +236,24 @@ def off() {
 }
 
 def setLevel(value) {
-	def lowThresholdvalue = (settings.lowThreshold != null && settings.lowThreshold != "") ? settings.lowThreshold.toInteger() : 33
-	def medThresholdvalue = (settings.medThreshold != null && settings.medThreshold != "") ? settings.medThreshold.toInteger() : 67
-	def highThresholdvalue = (settings.highThreshold != null && settings.highThreshold != "") ? settings.highThreshold.toInteger() : 99
-
-	if (value == "LOW") { value = lowThresholdvalue }
-	if (value == "MED") { value = medThresholdvalue }
-	if (value == "HIGH") { value = highThresholdvalue }
 
 	def level = Math.min(value as Integer, 99)
 
 	log.trace "setLevel(value): ${level}"
-    def children = getChildDevices()
-    children.each {child->
-       def childSpeedVal = child.getDataValue('speedVal')
-	   if (level <= lowThresholdvalue && childSpeedVal == "01") {
-          child.sendEvent(name:"fanSpeed", value:"adjusting01")
-          sendEvent(name:"currentState", value:"LOW")
-       } else if (level >= lowThresholdvalue+1 && level <= medThresholdvalue && childSpeedVal == "02") {
-          child.sendEvent(name:"fanSpeed", value:"adjusting02")
-          sendEvent(name:"currentState", value:"MED")
-       } else if (level >= medThresholdvalue+1 && childSpeedVal == "03") {
-          child.sendEvent(name:"fanSpeed", value:"adjusting03")
-          sendEvent(name:"currentState", value:"HIGH")
-       } else {
-          child.sendEvent(name:"fanSpeed", value:"default${childSpeedVal}")
-       }
-    }
+    
+    setTiles(level)
 
 	delayBetween ([zwave.basicV1.basicSet(value: level as Integer).format(), zwave.switchMultilevelV1.switchMultilevelGet().format()], 1000)
 }
 
 def setLevel(value, duration) {
-	def lowThresholdvalue = (settings.lowThreshold != null && settings.lowThreshold != "") ? settings.lowThreshold.toInteger() : 33
-	def medThresholdvalue = (settings.medThreshold != null && settings.medThreshold != "") ? settings.medThreshold.toInteger() : 67
-	def highThresholdvalue = (settings.highThreshold != null && settings.highThreshold != "") ? settings.highThreshold.toInteger() : 99
-
-	if (value == "LOW") { value = lowThresholdvalue }
-	if (value == "MED") { value = medThresholdvalue }
-	if (value == "HIGH") { value = highThresholdvalue }
 
 	def level = Math.min(value as Integer, 99)
 	def dimmingDuration = duration < 128 ? duration : 128 + Math.round(duration / 60)
 
 	log.trace "setLevel(value): ${level}"
 
-    def children = getChildDevices()
-    children.each {child->
-       def childSpeedVal = child.getDataValue('speedVal')   
-	   if (level <= lowThresholdvalue && childSpeedVal == "01") {
-          child.sendEvent(name:"fanSpeed", value:"adjusting01")
-          sendEvent(name:"currentState", value:"LOW")
-       } else if (level >= lowThresholdvalue+1 && level <= medThresholdvalue && childSpeedVal == "02") {
-          child.sendEvent(name:"fanSpeed", value:"adjusting02")
-          sendEvent(name:"currentState", value:"MED")
-       } else if (level >= medThresholdvalue+1 && childSpeedVal == "03") {
-          child.sendEvent(name:"fanSpeed", value:"on03")
-          sendEvent(name:"currentState", value:"HIGH")
-       } else {
-          child.sendEvent(name:"fanSpeed", value:"default${childSpeedVal}")
-       }
-    }
+    setTiles(level)
     
 	zwave.switchMultilevelV2.switchMultilevelSet(value: level, dimmingDuration: dimmingDuration).format()
 }
@@ -356,11 +318,7 @@ def updateChildLabel() {
     	}                 
         if (childDevice) {childDevice.label = "${device.displayName} ${getFanName()["0${i}"]}"} // rename with new label
     }
-    
-    def childDeviceL = getChildDevices()?.find {
-        	it.device.deviceNetworkId == "${device.deviceNetworkId}-Light"
-    }
-    if (childDeviceL) {childDeviceL.label = "${device.displayName}-Light"}    // rename with new label
+    state.oldLabel = device.label //save the updated label for reference
 }
 
 def createFanChild() {
@@ -389,4 +347,19 @@ def getFanName() {
     "02":"MEDIUM",
     "03":"HIGH"
 	]
+}
+
+def lowSpeed() {
+    def value = (settings.lowThreshold != null && settings.lowThreshold != "") ? settings.lowThreshold.toInteger() : 33
+	setLevel(value)
+}
+
+def medSpeed() {
+	def value = (settings.medThreshold != null && settings.medThreshold != "") ? settings.medThreshold.toInteger() : 67
+	setLevel(value)
+}
+
+def highSpeed() {
+	def value = (settings.highThreshold != null && settings.highThreshold != "") ? settings.highThreshold.toInteger() : 99
+	setLevel(value)
 }
