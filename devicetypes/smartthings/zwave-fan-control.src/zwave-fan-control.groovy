@@ -328,7 +328,7 @@ def createFanChild() {
         	it.device.deviceNetworkId == "${device.deviceNetworkId}-0${i}"
     	}                 
         if (!childDevice) {        
-        	childDevice = addChildDevice("Fan Controller - Fan Speed Child Device", "${device.deviceNetworkId}-0${i}", null,[completedSetup: true,
+        	childDevice = addChildDevice("Z-Wave Fan Control - Child Device", "${device.deviceNetworkId}-0${i}", null,[completedSetup: true,
             label: "${device.displayName} ${getFanName()["0${i}"]}", isComponent: true, componentName: "fanMode${i}",
             componentLabel: "${getFanName()["0${i}"]}", "data":["speedVal":"0${i}"]])        	
            	log.info "Creating child fan mode ${childDevice}"

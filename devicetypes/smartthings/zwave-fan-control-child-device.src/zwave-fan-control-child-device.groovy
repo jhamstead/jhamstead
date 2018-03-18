@@ -53,7 +53,7 @@ metadata {
 }
 
 def on() {
-    log.info "CHILD ${getFanAbbr()["${device.getDataValue('speedVal')}"]} TURNED ON"
+    log.info "CHILD TURNED ON"
 	if("${device.getDataValue('speedVal')}" == "01") { parent.lowSpeed() }
     else if("${device.getDataValue('speedVal')}" == "02") { parent.medSpeed() }
     else if("${device.getDataValue('speedVal')}" == "03") { parent.highSpeed() }
