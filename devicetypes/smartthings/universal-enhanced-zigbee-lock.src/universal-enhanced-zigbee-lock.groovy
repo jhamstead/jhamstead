@@ -1,6 +1,7 @@
 /*
  *  Universal Enhanced ZigBee Lock
  *
+ *  2018-08-06 : 1.7a - RBoy Apps Bug fix for Yale battery
  *  2017-07-23 : 1.7 - Bug fix for when lock and DTH are no longer in sync
  *  2017-06-25 : 1.6a - Bug Fix for error created in version 1.6
  *  2017-06-23 : Changed CoRE update (numCodes now reports max codes allowed).  Added fingerprint for YRD226/246. Version 1.6
@@ -168,6 +169,7 @@
             input "autoLock", "number", title: "Auto Lock Timeout (5-180 Seconds)", description: true, defaultValue: 30, required: false, range: "5..180"
             input "wrongLimit", "number", title: "Wrong Code Entry Limit (1-10 Invalid Entries)", description: true, defaultValue: 5, required: false, range: "1..10"
             input "lockoutTime", "number", title: "Wrong Code Entry Lockout (5-180 Seconds)", description: true, defaultValue: 60, required: false, range: "5..180"
+			input "batteryReportingFix", "bool", title: "Enable If Lock Reports New Battery > 100%", description: "Fix for locks which report battery in 1% increments"
         }
 	}
 }
@@ -677,10 +679,11 @@ private Map parseReportAttributeMessage(String description) {
     Map resultMap = [:]
     if (descMap.clusterInt == CLUSTER_POWER && descMap.attrInt == POWER_ATTR_BATTERY_PERCENTAGE_REMAINING) {
         resultMap.name = "battery"
-        resultMap.value = Math.round(Integer.parseInt(descMap.value, 16) / 2)
-        if (device.getDataValue("manufacturer") == "Yale") {            //Handling issue with Yale locks incorrect battery reporting
+        if (settings.batteryReportingFix) { // Some (Yale) locks report battery from 0x00 to 0x64 in 1% increments
             resultMap.value = Integer.parseInt(descMap.value, 16)
-        }
+		} else { // Standard Zigbee reporting is 0.5% increments reported in Hex
+			resultMap.value = Math.round(Integer.parseInt(descMap.value, 16) / 2)
+		}
     } else if (descMap.clusterInt == CLUSTER_DOORLOCK && descMap.attrInt == DOORLOCK_ATTR_LOCKSTATE) {
         def value = Integer.parseInt(descMap.value, 16)
         def linkText = getLinkText(device)
